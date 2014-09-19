@@ -1,0 +1,12 @@
+AnswerPhone
+DriveCar
+Eat
+FightPerson
+GetOutCar
+HandShake
+HugPerson
+Kiss
+Run
+SitDown
+SitUp
+StandUp

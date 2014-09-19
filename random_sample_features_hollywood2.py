@@ -6,32 +6,47 @@ import cPickle as pickle
 import bisect
 import numpy.random
 import time
+from IPython import parallel
+import functools
+import pandas
 
 feat_base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results'
 feat_train_dir = feat_base_dir + os.sep + 'train'
 feat_test_dir = feat_base_dir + os.sep + 'test'
 feature_folder = feat_train_dir
-metadata_folder = '.'
+metadata_folder = '/nfs/bigeye/sdaptardar/actreg/densetraj'
 num_features = 256000
+# num_features = 10
 dset_name = 'train'
 
 
+#def read_feat(ffile, num):
+#    feat = None
+#    if num < 0:
+#        return
+#    with open(ffile, 'r+b') as f:
+#        mm = None
+#        try:
+#            mm = mmap.mmap(fileno=f.fileno(), length=0, flags=mmap.MAP_SHARED, prot=mmap.PROT_READ, offset=0)
+#            if num > 0:
+#                for i in range(num):
+#                    mm.readline()
+#            feat = mm.readline()
+#        finally:
+#            if not mm == None:
+#                mm.close()
+#    return map(float, feat.strip().split())
+
+
 def read_feat(ffile, num):
-    feat = None
-    if num < 0:
-        return
-    with open(ffile, 'r+b') as f:
-        mm = None
-        try:
-            mm = mmap.mmap(fileno=f.fileno(), length=0, flags=mmap.MAP_SHARED, prot=mmap.PROT_READ, offset=0)
-            if num > 0:
-                for i in range(num):
-                    mm.readline()
-            feat = mm.readline()
-        finally:
-            if not mm == None:
-                mm.close()
-    return map(float, feat.strip().split())
+    import pandas
+    import copy
+    import gc
+    A = pandas.read_csv(ffile, delimiter='\t', header=None)
+    feat = copy.deepcopy(A.loc[num, 0:426].tolist())
+    A = None
+    gc.collect()
+    return feat
 
 
 def line_count(ffile):
@@ -151,6 +166,7 @@ def load_metadata(folder, name):
 
 
 def find_gt(a, x):
+    import bisect
     i = bisect.bisect_left(a, x)
     if i > 0:
         return (i, a[i-1])
@@ -158,7 +174,11 @@ def find_gt(a, x):
         return (0, 0)
     raise ValueError
 
-def get_single_feature(feature_folder, mdata, num):
+
+def get_single_feature_f(num, feature_folder, mdata):
+
+        import os
+        import time
 
         ub_idx, lb = find_gt(mdata['filesize_cumsum'], num)
         offset = num - lb        
@@ -166,11 +186,25 @@ def get_single_feature(feature_folder, mdata, num):
         fn = mdata['file_map'][ub_idx]
         fname = '%s%s%s' % (feature_folder, os.sep, fn)
         print('Filename: %s' % fname)
-        return (fn, offset, read_feat(fname, offset))
+        t1 = time.time()
+        feat = read_feat(fname, offset)
+        t2 = time.time()
+        print('Time taken: %f' % (t2 - t1))
+        return (fn, offset, feat)
 
 
-def gen_random_sample_of_features(feature_folder, metadata_folder, name, num_feat):
+def get_single_feature(num, feature_folder, mdata):
+    try:
+        return get_single_feature_f(num, feature_folder, mdata)
+    except:
+        import numpy
+        num2 = numpy.random.randint(num_features)
+        return get_single_feature(num2, feature_folder, mdata)
 
+def gen_random_sample_of_features(view, feature_folder, metadata_folder, name, num_feat):
+#def gen_random_sample_of_features(feature_folder, metadata_folder, name, num_feat):
+
+    import numpy
     L = load_metadata(metadata_folder, name)
     N = L['tot_feat']
 
@@ -178,27 +212,46 @@ def gen_random_sample_of_features(feature_folder, metadata_folder, name, num_fea
     # print(featureids)
     # print('Length: %d', len(featureids))
 
-    random_sample_fn = '%s_randomsample.pkl' % name
+    # random_sample_fn = '%s_randomsample.pkl' % name
+    random_sample_fn = '%s_randomsample.npy' % name
 
-    random_sample = []
-    cnt = 0
-    for fid in featureids:
-        t1 = time.time()
-        (fn, offset, F) = get_single_feature(feature_folder, L, fid)
-        random_sample.append((fn, offset, F))
-        t2 = time.time()
-        cnt = cnt + 1
-        print('%d : %f' % (cnt, (t2 - t1)))
+#    random_sample = []
+#    cnt = 0
+#    for fid in featureids:
+#        t1 = time.time()
+#        (fn, offset, F) = get_single_feature(fid, feature_folder, L)
+#        random_sample.append((fn, offset, F))
+#        t2 = time.time()
+#        cnt = cnt + 1
+#        print('%d : %f' % (cnt, (t2 - t1)))
+
+    res = view.map(functools.partial(get_single_feature, feature_folder=feature_folder, mdata=L), featureids)
+    # random_sample = map(functools.partial(get_single_feature, feature_folder=feature_folder, mdata=L), featureids)
+
+    import time
+    import numpy
+
+    while not res.ready():
+        time.sleep(60)
+        print('Progress: ', res.progress)
+        print('Ready: ', res.ready())
+
+    #random_sample = res.result
+    random_sample = numpy.array(res.result, dtype=object)
+    print('Time serial: %f' % res.serial_time)
+    print('Time parallel: %f' % res.wall_time)
 
     with open(random_sample_fn, 'wb') as random_sample_f:
-        pickle.dump(random_sample, random_sample_f)
-
+        # pickle.dump(random_sample, random_sample_f)
+        numpy.save(random_sample_f, random_sample)
 
 def load_random_sample_of_features(metadata_folder, name):
 
-    random_sample_fn = '%s_randomsample.pkl' % name
+    #random_sample_fn = '%s_randomsample.pkl' % name
+    random_sample_fn = '%s_randomsample.npy' % name
     with open(random_sample_fn, 'rb') as random_sample_f:
-        random_sample = pickle.load(random_sample_f)
+        #random_sample = pickle.load(random_sample_f)
+        random_sample = numpy.load(random_sample_f, mmap_mode='r')
         print(random_sample)
 
 # feat = read_feat(ffile, 10)
@@ -242,6 +295,29 @@ def load_random_sample_of_features(metadata_folder, name):
 # print()
 # print()
 
+# Create a client
+c = parallel.Client(profile='sge', sshserver='sdaptardar@130.245.4.230')
 
-gen_random_sample_of_features(feature_folder, metadata_folder, dset_name, num_features)
+# Create a DirectView
+view = c[:]
+view.block = False
+print(c.ids)
+
+# Push all required variables to the engines
+view.push(dict( \
+feat_base_dir = feat_base_dir, \
+feat_train_dir = feat_train_dir, \
+feat_test_dir = feat_test_dir, \
+feature_folder = feature_folder,
+metadata_folder = metadata_folder, \
+num_features = num_features, \
+dset_name = dset_name, \
+get_single_feature_f = get_single_feature_f, \
+get_single_feature = get_single_feature, \
+find_gt = find_gt, \
+read_feat = read_feat \
+))
+
+# gen_random_sample_of_features(feature_folder, metadata_folder, dset_name, num_features)
+gen_random_sample_of_features(view, feature_folder, metadata_folder, dset_name, num_features)
 #load_random_sample_of_features(metadata_folder, dset_name)
