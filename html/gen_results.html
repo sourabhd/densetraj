@@ -1,0 +1,350 @@
+
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+   <!--
+This HTML was auto-generated from MATLAB code.
+To make changes, update the MATLAB code and republish this document.
+      --><title>Dense Trajectory Feature Evaluation</title><meta name="generator" content="MATLAB 7.11"><link rel="schema.DC" href="http://purl.org/dc/elements/1.1/"><meta name="DC.date" content="2014-09-21"><meta name="DC.source" content="gen_results.m"><style type="text/css">
+
+body {
+  background-color: white;
+  margin:10px;
+}
+
+h1 {
+  color: #990000; 
+  font-size: x-large;
+}
+
+h2 {
+  color: #990000;
+  font-size: medium;
+}
+
+/* Make the text shrink to fit narrow windows, but not stretch too far in 
+wide windows. */ 
+p,h1,h2,div.content div {
+  max-width: 600px;
+  /* Hack for IE6 */
+  width: auto !important; width: 600px;
+}
+
+pre.codeinput {
+  background: #EEEEEE;
+  padding: 10px;
+}
+@media print {
+  pre.codeinput {word-wrap:break-word; width:100%;}
+} 
+
+span.keyword {color: #0000FF}
+span.comment {color: #228B22}
+span.string {color: #A020F0}
+span.untermstring {color: #B20000}
+span.syscmd {color: #B28C00}
+
+pre.codeoutput {
+  color: #666666;
+  padding: 10px;
+}
+
+pre.error {
+  color: red;
+}
+
+p.footer {
+  text-align: right;
+  font-size: xx-small;
+  font-weight: lighter;
+  font-style: italic;
+  color: gray;
+}
+
+  </style></head><body><div class="content"><h1>Dense Trajectory Feature Evaluation</h1><!--introduction--><!--/introduction--><h2>Contents</h2><div><ul><li><a href="#3">Confusion Matrices and Precision Recall Curves for all classes</a></li><li><a href="#6">Class wise result summary</a></li><li><a href="#7">Mean Average Precision</a></li></ul></div><p>Dense Trajectory features were evaluated with CVPR 11 paper</p><p>Differences with the paper:</p><div><ol><li>PCA dimensionality reduction is not done before GMM</li><li>Root normalization trick is not used</li></ol></div><pre class="codeinput">close <span class="string">all</span>; clear <span class="string">all</span>; clc;
+run(<span class="string">'/nfs/bigeye/sdaptardar/installs/vlfeat/toolbox/vl_setup.m'</span>);
+
+dset_dir = <span class="string">'/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2'</span>;
+base_dir = <span class="string">'/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results'</span>;
+num_train_dir = 823;
+num_test_dir = 884;
+
+classes = {
+<span class="string">'AnswerPhone'</span>,
+<span class="string">'DriveCar'</span>,
+<span class="string">'Eat'</span>,
+<span class="string">'FightPerson'</span>,
+<span class="string">'GetOutCar'</span>,
+<span class="string">'HandShake'</span>,
+<span class="string">'HugPerson'</span>,
+<span class="string">'Kiss'</span>,
+<span class="string">'Run'</span>,
+<span class="string">'SitDown'</span>,
+<span class="string">'SitUp'</span>,
+<span class="string">'StandUp'</span>
+};
+
+num_classes = 12;
+
+cvpr11_ap = [ 0.326, 0.88, 0.652, 0.814, 0.527, 0.296, 0.542, 0.658, 0.821, 0.625, 0.2, 0.652 ]';
+
+feature_dir = [ base_dir <span class="string">'/'</span> <span class="string">'fisher'</span> ];
+results_dir = [ base_dir <span class="string">'/'</span> <span class="string">'results'</span> ];
+train_file = [ feature_dir <span class="string">'/'</span> <span class="string">'train_fv.mat'</span> ];
+test_file = [ feature_dir <span class="string">'/'</span> <span class="string">'test_fv.mat'</span> ];
+
+results_file = [ results_dir <span class="string">'/'</span> <span class="string">'classification.mat'</span>];
+results = load(results_file);
+
+CM = cell(num_classes,1);
+order = cell(num_classes,1);
+testing_labels_fname = cell(num_classes,1);
+testing_labels_vector = cell(num_classes, 1);
+AP = zeros(num_classes, 1);
+</pre><h2>Confusion Matrices and Precision Recall Curves for all classes<a name="3"></a></h2><pre class="codeinput">fig = cell(num_classes, 1);
+<span class="keyword">for</span> i = 1:num_classes,
+</pre><pre class="codeinput">    cl = classes{i};
+    disp(sprintf(<span class="string">'%s'</span>, cl));
+    labels_dict_file_test = sprintf(<span class="string">'%s%s%s%s%s%s%s%s'</span>, dset_dir, <span class="string">'/'</span>, <span class="string">'ClipSets'</span>, <span class="string">'/'</span>, cl, <span class="string">'_'</span>, <span class="string">'test'</span>, <span class="string">'.txt'</span>);
+    fprintf(<span class="string">'%s\n'</span>, labels_dict_file_test);
+    [testing_labels_fname{i}, testing_labels_vector{i}] = textread(labels_dict_file_test, <span class="string">'%s %d'</span>);
+    te_sz = size(testing_labels_fname{i});
+    num_te = te_sz(1);
+    [CM{i}, order{i} ] = confusionmat(testing_labels_vector{i}, results.predicted_label{i});
+    disp(sprintf(<span class="string">'Confusion Matrix for %s\n'</span>, cl));
+    disp(CM{i});
+    disp(sprintf(<span class="string">'\n'</span>));
+    AP(i) = results.ap_info{i}.ap;
+    fig{i} = figure;
+    vl_pr(testing_labels_vector{i}, results.probability_estimates{i});
+</pre><pre class="codeoutput">AnswerPhone
+/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/AnswerPhone_test.txt
+Confusion Matrix for AnswerPhone
+
+   817     3
+    64     0
+
+
+
+</pre><img vspace="5" hspace="5" src="gen_results_01.png" alt=""> <pre class="codeoutput">DriveCar
+/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/DriveCar_test.txt
+Confusion Matrix for DriveCar
+
+   769    13
+    26    76
+
+
+
+</pre><img vspace="5" hspace="5" src="gen_results_02.png" alt=""> <pre class="codeoutput">Eat
+/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/Eat_test.txt
+Confusion Matrix for Eat
+
+   849     2
+    33     0
+
+
+
+</pre><img vspace="5" hspace="5" src="gen_results_03.png" alt=""> <pre class="codeoutput">FightPerson
+/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/FightPerson_test.txt
+Confusion Matrix for FightPerson
+
+   797    17
+    28    42
+
+
+
+</pre><img vspace="5" hspace="5" src="gen_results_04.png" alt=""> <pre class="codeoutput">GetOutCar
+/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/GetOutCar_test.txt
+Confusion Matrix for GetOutCar
+
+   823     4
+    56     1
+
+
+
+</pre><img vspace="5" hspace="5" src="gen_results_05.png" alt=""> <pre class="codeoutput">HandShake
+/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/HandShake_test.txt
+Confusion Matrix for HandShake
+
+   839     0
+    45     0
+
+
+
+</pre><img vspace="5" hspace="5" src="gen_results_06.png" alt=""> <pre class="codeoutput">HugPerson
+/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/HugPerson_test.txt
+Confusion Matrix for HugPerson
+
+   809     9
+    61     5
+
+
+
+</pre><img vspace="5" hspace="5" src="gen_results_07.png" alt=""> <pre class="codeoutput">Kiss
+/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/Kiss_test.txt
+Confusion Matrix for Kiss
+
+   762    19
+    65    38
+
+
+
+</pre><img vspace="5" hspace="5" src="gen_results_08.png" alt=""> <pre class="codeoutput">Run
+/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/Run_test.txt
+Confusion Matrix for Run
+
+   730    13
+    67    74
+
+
+
+</pre><img vspace="5" hspace="5" src="gen_results_09.png" alt=""> <pre class="codeoutput">SitDown
+/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/SitDown_test.txt
+Confusion Matrix for SitDown
+
+   756    20
+    69    39
+
+
+
+</pre><img vspace="5" hspace="5" src="gen_results_10.png" alt=""> <pre class="codeoutput">SitUp
+/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/SitUp_test.txt
+Confusion Matrix for SitUp
+
+   845     2
+    37     0
+
+
+
+</pre><img vspace="5" hspace="5" src="gen_results_11.png" alt=""> <pre class="codeoutput">StandUp
+/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/StandUp_test.txt
+Confusion Matrix for StandUp
+
+   714    24
+    94    52
+
+
+
+</pre><img vspace="5" hspace="5" src="gen_results_12.png" alt=""> <pre class="codeinput"><span class="keyword">end</span>
+</pre><h2>Class wise result summary<a name="6"></a></h2><pre class="codeinput">S = cell(num_classes, 1);
+<span class="keyword">for</span> i = 1:num_classes
+    S{i} = sprintf(<span class="string">'%12s | %10f | %10f'</span>,classes{i}, AP(i), cvpr11_ap(i));
+<span class="keyword">end</span>
+
+S = [ sprintf(<span class="string">'%12s | %10s | %10s'</span>, <span class="string">'Classes'</span>, <span class="string">'AP'</span>, <span class="string">'CVPR11'</span>) ; S ]
+</pre><pre class="codeoutput">
+S = 
+
+    '     Classes |         AP |     CVPR11'
+    ' AnswerPhone |   0.138903 |   0.326000'
+    '    DriveCar |   0.858534 |   0.880000'
+    '         Eat |   0.213164 |   0.652000'
+    ' FightPerson |   0.621500 |   0.814000'
+    '   GetOutCar |   0.302980 |   0.527000'
+    '   HandShake |   0.119236 |   0.296000'
+    '   HugPerson |   0.294500 |   0.542000'
+    '        Kiss |   0.568799 |   0.658000'
+    '         Run |   0.742177 |   0.821000'
+    '     SitDown |   0.550979 |   0.625000'
+    '       SitUp |   0.108027 |   0.200000'
+    '     StandUp |   0.617563 |   0.652000'
+
+</pre><h2>Mean Average Precision<a name="7"></a></h2><pre class="codeinput">disp(sprintf(<span class="string">'Our    MAP = %f'</span>,  mean(AP)));
+
+disp(sprintf(<span class="string">'CVPR11 MAP = %f'</span>,  mean(cvpr11_ap)));
+</pre><pre class="codeoutput">Our    MAP = 0.428030
+CVPR11 MAP = 0.582750
+</pre><p class="footer"><br>
+      Published with MATLAB&reg; 7.11<br></p></div><!--
+##### SOURCE BEGIN #####
+%% Dense Trajectory Feature Evaluation
+%%
+% Dense Trajectory features were evaluated with CVPR 11 paper
+%
+% Differences with the paper:
+%%
+% # PCA dimensionality reduction is not done before GMM
+% # Root normalization trick is not used 
+
+close all; clear all; clc;
+run('/nfs/bigeye/sdaptardar/installs/vlfeat/toolbox/vl_setup.m');
+
+dset_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2';
+base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results';
+num_train_dir = 823;
+num_test_dir = 884;
+
+classes = {
+'AnswerPhone',
+'DriveCar',
+'Eat',
+'FightPerson',
+'GetOutCar',
+'HandShake',
+'HugPerson',
+'Kiss',
+'Run',
+'SitDown',
+'SitUp',
+'StandUp'
+};
+
+num_classes = 12;
+
+cvpr11_ap = [ 0.326, 0.88, 0.652, 0.814, 0.527, 0.296, 0.542, 0.658, 0.821, 0.625, 0.2, 0.652 ]';
+
+feature_dir = [ base_dir '/' 'fisher' ];
+results_dir = [ base_dir '/' 'results' ]; 
+train_file = [ feature_dir '/' 'train_fv.mat' ];
+test_file = [ feature_dir '/' 'test_fv.mat' ];
+
+results_file = [ results_dir '/' 'classification.mat'];
+results = load(results_file);
+
+CM = cell(num_classes,1);
+order = cell(num_classes,1);
+testing_labels_fname = cell(num_classes,1);
+testing_labels_vector = cell(num_classes, 1);
+AP = zeros(num_classes, 1);
+
+%% Confusion Matrices and Precision Recall Curves for all classes
+
+fig = cell(num_classes, 1);
+for i = 1:num_classes,
+    %%
+    cl = classes{i};
+    disp(sprintf('%s', cl));
+    labels_dict_file_test = sprintf('%s%s%s%s%s%s%s%s', dset_dir, '/', 'ClipSets', '/', cl, '_', 'test', '.txt');
+    fprintf('%s\n', labels_dict_file_test); 
+    [testing_labels_fname{i}, testing_labels_vector{i}] = textread(labels_dict_file_test, '%s %d');
+    te_sz = size(testing_labels_fname{i});
+    num_te = te_sz(1);
+    [CM{i}, order{i} ] = confusionmat(testing_labels_vector{i}, results.predicted_label{i});
+    disp(sprintf('Confusion Matrix for %s\n', cl));
+    disp(CM{i});
+    disp(sprintf('\n'));
+    AP(i) = results.ap_info{i}.ap;
+    fig{i} = figure;
+    vl_pr(testing_labels_vector{i}, results.probability_estimates{i});
+    
+end
+
+
+%% Class wise result summary
+%
+
+S = cell(num_classes, 1);
+for i = 1:num_classes
+    S{i} = sprintf('%12s | %10f | %10f',classes{i}, AP(i), cvpr11_ap(i));
+end
+
+S = [ sprintf('%12s | %10s | %10s', 'Classes', 'AP', 'CVPR11') ; S ]
+
+%% Mean Average Precision
+
+disp(sprintf('Our    MAP = %f',  mean(AP)));
+
+disp(sprintf('CVPR11 MAP = %f',  mean(cvpr11_ap)));
+##### SOURCE END #####
+--></body></html>
