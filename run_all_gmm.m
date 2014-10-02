@@ -1,5 +1,6 @@
 
-base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results';
+%base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results';
+base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Improved_Traj';
 train_dir = [ base_dir '/'  'train'];
 test_dir = [ base_dir '/'  'test'];
 feat_sample_dir = [ base_dir '/' 'feature_sample'];
@@ -9,7 +10,7 @@ train_dir_glob = [ train_dir '/' 'actioncliptrain*.txt' ];
 num_feat_per_file = 320;
 dim = 436;
 sample_size = 256000;
-random_sample_f = [ feat_sample_dir '/' 'rand_sample_densetraj.mat' ];
+random_sample_f = [ feat_sample_dir '/' 'rand_sample_densetraj_eqperclass.mat' ];
 
 
 mkdir(gmm_dir)

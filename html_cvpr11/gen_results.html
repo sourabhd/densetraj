@@ -6,7 +6,7 @@
    <!--
 This HTML was auto-generated from MATLAB code.
 To make changes, update the MATLAB code and republish this document.
-      --><title>gen_results</title><meta name="generator" content="MATLAB 7.11"><link rel="schema.DC" href="http://purl.org/dc/elements/1.1/"><meta name="DC.date" content="2014-10-02"><meta name="DC.source" content="gen_results.m"><style type="text/css">
+      --><title>Dense Trajectory Feature Evaluation</title><meta name="generator" content="MATLAB 7.11"><link rel="schema.DC" href="http://purl.org/dc/elements/1.1/"><meta name="DC.date" content="2014-09-21"><meta name="DC.source" content="gen_results.m"><style type="text/css">
 
 body {
   background-color: white;
@@ -62,12 +62,11 @@ p.footer {
   color: gray;
 }
 
-  </style></head><body><div class="content"><h2>Contents</h2><div><ul><li><a href="#1">Improved Dense Trajectory Feature Evaluation</a></li><li><a href="#2">Confusion Matrices and Precision Recall Curves for all classes</a></li><li><a href="#5">Class wise result summary</a></li><li><a href="#6">Mean Average Precision</a></li></ul></div><h2>Improved Dense Trajectory Feature Evaluation<a name="1"></a></h2><pre class="codeinput">close <span class="string">all</span>; clear <span class="string">all</span>; clc;
+  </style></head><body><div class="content"><h1>Dense Trajectory Feature Evaluation</h1><!--introduction--><!--/introduction--><h2>Contents</h2><div><ul><li><a href="#3">Confusion Matrices and Precision Recall Curves for all classes</a></li><li><a href="#6">Class wise result summary</a></li><li><a href="#7">Mean Average Precision</a></li></ul></div><p>Dense Trajectory features were evaluated with CVPR 11 paper</p><p>Differences with the paper:</p><div><ol><li>PCA dimensionality reduction is not done before GMM</li><li>Root normalization trick is not used</li></ol></div><pre class="codeinput">close <span class="string">all</span>; clear <span class="string">all</span>; clc;
 run(<span class="string">'/nfs/bigeye/sdaptardar/installs/vlfeat/toolbox/vl_setup.m'</span>);
 
 dset_dir = <span class="string">'/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2'</span>;
-<span class="comment">%base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results';</span>
-base_dir = <span class="string">'/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Improved_Traj'</span>;
+base_dir = <span class="string">'/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results'</span>;
 num_train_dir = 823;
 num_test_dir = 884;
 
@@ -103,7 +102,7 @@ order = cell(num_classes,1);
 testing_labels_fname = cell(num_classes,1);
 testing_labels_vector = cell(num_classes, 1);
 AP = zeros(num_classes, 1);
-</pre><h2>Confusion Matrices and Precision Recall Curves for all classes<a name="2"></a></h2><pre class="codeinput">fig = cell(num_classes, 1);
+</pre><h2>Confusion Matrices and Precision Recall Curves for all classes<a name="3"></a></h2><pre class="codeinput">fig = cell(num_classes, 1);
 <span class="keyword">for</span> i = 1:num_classes,
 </pre><pre class="codeinput">    cl = classes{i};
     disp(sprintf(<span class="string">'%s'</span>, cl));
@@ -112,26 +111,18 @@ AP = zeros(num_classes, 1);
     [testing_labels_fname{i}, testing_labels_vector{i}] = textread(labels_dict_file_test, <span class="string">'%s %d'</span>);
     te_sz = size(testing_labels_fname{i});
     num_te = te_sz(1);
-
-    te_ix = [ find(testing_labels_vector{i} == 1) ; find(testing_labels_vector{i} == -1)];
-
-    <span class="comment">%testing_labels_vector{i}(testing_labels_vector{i} == 1) = 1;</span>
-    <span class="comment">%testing_labels_vector{i}(testing_labels_vector{i} == -1) = 0;</span>
-
-    [CM{i}, order{i} ] = confusionmat(testing_labels_vector{i}(te_ix,:), results.predicted_label{i});
+    [CM{i}, order{i} ] = confusionmat(testing_labels_vector{i}, results.predicted_label{i});
     disp(sprintf(<span class="string">'Confusion Matrix for %s\n'</span>, cl));
     disp(CM{i});
     disp(sprintf(<span class="string">'\n'</span>));
     AP(i) = results.ap_info{i}.ap;
     fig{i} = figure;
-    <span class="comment">%vl_pr(testing_labels_vector{i}, results.probability_estimates{i});</span>
-
-    vl_pr(testing_labels_vector{i}(te_ix,:), results.decision_values{i});
+    vl_pr(testing_labels_vector{i}, results.probability_estimates{i});
 </pre><pre class="codeoutput">AnswerPhone
 /nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/AnswerPhone_test.txt
 Confusion Matrix for AnswerPhone
 
-   820     0
+   817     3
     64     0
 
 
@@ -140,8 +131,8 @@ Confusion Matrix for AnswerPhone
 /nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/DriveCar_test.txt
 Confusion Matrix for DriveCar
 
-   775     7
-    22    80
+   769    13
+    26    76
 
 
 
@@ -149,8 +140,8 @@ Confusion Matrix for DriveCar
 /nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/Eat_test.txt
 Confusion Matrix for Eat
 
-   851     0
-    28     5
+   849     2
+    33     0
 
 
 
@@ -158,8 +149,8 @@ Confusion Matrix for Eat
 /nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/FightPerson_test.txt
 Confusion Matrix for FightPerson
 
-   807     7
-    27    43
+   797    17
+    28    42
 
 
 
@@ -167,8 +158,8 @@ Confusion Matrix for FightPerson
 /nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/GetOutCar_test.txt
 Confusion Matrix for GetOutCar
 
-   827     0
-    52     5
+   823     4
+    56     1
 
 
 
@@ -185,8 +176,8 @@ Confusion Matrix for HandShake
 /nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/HugPerson_test.txt
 Confusion Matrix for HugPerson
 
-   818     0
-    63     3
+   809     9
+    61     5
 
 
 
@@ -194,8 +185,8 @@ Confusion Matrix for HugPerson
 /nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/Kiss_test.txt
 Confusion Matrix for Kiss
 
-   767    14
-    60    43
+   762    19
+    65    38
 
 
 
@@ -203,8 +194,8 @@ Confusion Matrix for Kiss
 /nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/Run_test.txt
 Confusion Matrix for Run
 
-   721    22
-    40   101
+   730    13
+    67    74
 
 
 
@@ -212,8 +203,8 @@ Confusion Matrix for Run
 /nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/SitDown_test.txt
 Confusion Matrix for SitDown
 
-   773     3
-    67    41
+   756    20
+    69    39
 
 
 
@@ -221,7 +212,7 @@ Confusion Matrix for SitDown
 /nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/SitUp_test.txt
 Confusion Matrix for SitUp
 
-   847     0
+   845     2
     37     0
 
 
@@ -230,57 +221,57 @@ Confusion Matrix for SitUp
 /nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2/ClipSets/StandUp_test.txt
 Confusion Matrix for StandUp
 
-   728    10
-    80    66
+   714    24
+    94    52
 
 
 
 </pre><img vspace="5" hspace="5" src="gen_results_12.png" alt=""> <pre class="codeinput"><span class="keyword">end</span>
-</pre><h2>Class wise result summary<a name="5"></a></h2><pre class="codeinput">S = cell(num_classes, 1);
+</pre><h2>Class wise result summary<a name="6"></a></h2><pre class="codeinput">S = cell(num_classes, 1);
 <span class="keyword">for</span> i = 1:num_classes
-    S{i} = sprintf(<span class="string">'| %12s | %10f | %10f | %10d | %10d |'</span>, <span class="keyword">...</span>
-        classes{i}, AP(i), cvpr11_ap(i), <span class="keyword">...</span>
-        results.pred_pos{i}, results.actual_pos{i});
+    S{i} = sprintf(<span class="string">'%12s | %10f | %10f'</span>,classes{i}, AP(i), cvpr11_ap(i));
 <span class="keyword">end</span>
 
-S = [ sprintf(<span class="string">'| %12s | %10s | %10s | %10s | %10s |'</span>, <span class="keyword">...</span>
-    <span class="string">'Classes'</span>, <span class="string">'AP'</span>, <span class="string">'CVPR11'</span>, <span class="string">'PP'</span>, <span class="string">'P'</span>) ; S ]
+S = [ sprintf(<span class="string">'%12s | %10s | %10s'</span>, <span class="string">'Classes'</span>, <span class="string">'AP'</span>, <span class="string">'CVPR11'</span>) ; S ]
 </pre><pre class="codeoutput">
 S = 
 
-    '|      Classes |         AP |     CVPR11 |         PP |          P |'
-    '|  AnswerPhone |   0.333591 |   0.326000 |          0 |         64 |'
-    '|     DriveCar |   0.929323 |   0.880000 |         87 |        102 |'
-    '|          Eat |   0.669142 |   0.652000 |          5 |         33 |'
-    '|  FightPerson |   0.838865 |   0.814000 |         50 |         70 |'
-    '|    GetOutCar |   0.604271 |   0.527000 |          5 |         57 |'
-    '|    HandShake |   0.457570 |   0.296000 |          0 |         45 |'
-    '|    HugPerson |   0.489638 |   0.542000 |          3 |         66 |'
-    '|         Kiss |   0.623824 |   0.658000 |         57 |        103 |'
-    '|          Run |   0.869808 |   0.821000 |        123 |        141 |'
-    '|      SitDown |   0.756986 |   0.625000 |         44 |        108 |'
-    '|        SitUp |   0.281270 |   0.200000 |          0 |         37 |'
-    '|      StandUp |   0.773641 |   0.652000 |         76 |        146 |'
+    '     Classes |         AP |     CVPR11'
+    ' AnswerPhone |   0.138903 |   0.326000'
+    '    DriveCar |   0.858534 |   0.880000'
+    '         Eat |   0.213164 |   0.652000'
+    ' FightPerson |   0.621500 |   0.814000'
+    '   GetOutCar |   0.302980 |   0.527000'
+    '   HandShake |   0.119236 |   0.296000'
+    '   HugPerson |   0.294500 |   0.542000'
+    '        Kiss |   0.568799 |   0.658000'
+    '         Run |   0.742177 |   0.821000'
+    '     SitDown |   0.550979 |   0.625000'
+    '       SitUp |   0.108027 |   0.200000'
+    '     StandUp |   0.617563 |   0.652000'
 
-</pre><h2>Mean Average Precision<a name="6"></a></h2><pre class="codeinput">disp(sprintf(<span class="string">'Our    MAP = %f'</span>,  mean(AP)));
+</pre><h2>Mean Average Precision<a name="7"></a></h2><pre class="codeinput">disp(sprintf(<span class="string">'Our    MAP = %f'</span>,  mean(AP)));
 
 disp(sprintf(<span class="string">'CVPR11 MAP = %f'</span>,  mean(cvpr11_ap)));
-
-disp(sprintf(<span class="string">'Improved trajectory paper MAP = %f'</span>, 64.3));
-</pre><pre class="codeoutput">Our    MAP = 0.635661
+</pre><pre class="codeoutput">Our    MAP = 0.428030
 CVPR11 MAP = 0.582750
-Improved trajectory paper MAP = 64.300000
 </pre><p class="footer"><br>
       Published with MATLAB&reg; 7.11<br></p></div><!--
 ##### SOURCE BEGIN #####
-%% Improved Dense Trajectory Feature Evaluation
+%% Dense Trajectory Feature Evaluation
+%%
+% Dense Trajectory features were evaluated with CVPR 11 paper
+%
+% Differences with the paper:
+%%
+% # PCA dimensionality reduction is not done before GMM
+% # Root normalization trick is not used 
 
 close all; clear all; clc;
 run('/nfs/bigeye/sdaptardar/installs/vlfeat/toolbox/vl_setup.m');
 
 dset_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2';
-%base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results';
-base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Improved_Traj';
+base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results';
 num_train_dir = 823;
 num_test_dir = 884;
 
@@ -329,21 +320,14 @@ for i = 1:num_classes,
     [testing_labels_fname{i}, testing_labels_vector{i}] = textread(labels_dict_file_test, '%s %d');
     te_sz = size(testing_labels_fname{i});
     num_te = te_sz(1);
-    
-    te_ix = [ find(testing_labels_vector{i} == 1) ; find(testing_labels_vector{i} == -1)];
-    
-    %testing_labels_vector{i}(testing_labels_vector{i} == 1) = 1;
-    %testing_labels_vector{i}(testing_labels_vector{i} == -1) = 0;
-    
-    [CM{i}, order{i} ] = confusionmat(testing_labels_vector{i}(te_ix,:), results.predicted_label{i});
+    [CM{i}, order{i} ] = confusionmat(testing_labels_vector{i}, results.predicted_label{i});
     disp(sprintf('Confusion Matrix for %s\n', cl));
     disp(CM{i});
     disp(sprintf('\n'));
     AP(i) = results.ap_info{i}.ap;
     fig{i} = figure;
-    %vl_pr(testing_labels_vector{i}, results.probability_estimates{i});
+    vl_pr(testing_labels_vector{i}, results.probability_estimates{i});
     
-    vl_pr(testing_labels_vector{i}(te_ix,:), results.decision_values{i});
 end
 
 
@@ -352,21 +336,15 @@ end
 
 S = cell(num_classes, 1);
 for i = 1:num_classes
-    S{i} = sprintf('| %12s | %10f | %10f | %10d | %10d |', ...
-        classes{i}, AP(i), cvpr11_ap(i), ...
-        results.pred_pos{i}, results.actual_pos{i});
+    S{i} = sprintf('%12s | %10f | %10f',classes{i}, AP(i), cvpr11_ap(i));
 end
 
-S = [ sprintf('| %12s | %10s | %10s | %10s | %10s |', ...
-    'Classes', 'AP', 'CVPR11', 'PP', 'P') ; S ]
+S = [ sprintf('%12s | %10s | %10s', 'Classes', 'AP', 'CVPR11') ; S ]
 
 %% Mean Average Precision
 
 disp(sprintf('Our    MAP = %f',  mean(AP)));
 
 disp(sprintf('CVPR11 MAP = %f',  mean(cvpr11_ap)));
-
-disp(sprintf('Improved trajectory paper MAP = %f', 64.3));
-
 ##### SOURCE END #####
 --></body></html>

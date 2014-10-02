@@ -1,17 +1,11 @@
-%% Dense Trajectory Feature Evaluation
-%%
-% Dense Trajectory features were evaluated with CVPR 11 paper
-%
-% Differences with the paper:
-%%
-% # PCA dimensionality reduction is not done before GMM
-% # Root normalization trick is not used 
+%% Improved Dense Trajectory Feature Evaluation
 
 close all; clear all; clc;
 run('/nfs/bigeye/sdaptardar/installs/vlfeat/toolbox/vl_setup.m');
 
 dset_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2';
-base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results';
+%base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results';
+base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Improved_Traj';
 num_train_dir = 823;
 num_test_dir = 884;
 
@@ -60,14 +54,21 @@ for i = 1:num_classes,
     [testing_labels_fname{i}, testing_labels_vector{i}] = textread(labels_dict_file_test, '%s %d');
     te_sz = size(testing_labels_fname{i});
     num_te = te_sz(1);
-    [CM{i}, order{i} ] = confusionmat(testing_labels_vector{i}, results.predicted_label{i});
+    
+    te_ix = [ find(testing_labels_vector{i} == 1) ; find(testing_labels_vector{i} == -1)];
+    
+    %testing_labels_vector{i}(testing_labels_vector{i} == 1) = 1;
+    %testing_labels_vector{i}(testing_labels_vector{i} == -1) = 0;
+    
+    [CM{i}, order{i} ] = confusionmat(testing_labels_vector{i}(te_ix,:), results.predicted_label{i});
     disp(sprintf('Confusion Matrix for %s\n', cl));
     disp(CM{i});
     disp(sprintf('\n'));
     AP(i) = results.ap_info{i}.ap;
     fig{i} = figure;
-    vl_pr(testing_labels_vector{i}, results.probability_estimates{i});
+    %vl_pr(testing_labels_vector{i}, results.probability_estimates{i});
     
+    vl_pr(testing_labels_vector{i}(te_ix,:), results.decision_values{i});
 end
 
 
@@ -76,13 +77,18 @@ end
 
 S = cell(num_classes, 1);
 for i = 1:num_classes
-    S{i} = sprintf('%12s | %10f | %10f',classes{i}, AP(i), cvpr11_ap(i));
+    S{i} = sprintf('| %12s | %10f | %10f | %10d | %10d |', ...
+        classes{i}, AP(i), cvpr11_ap(i), ...
+        results.pred_pos{i}, results.actual_pos{i});
 end
 
-S = [ sprintf('%12s | %10s | %10s', 'Classes', 'AP', 'CVPR11') ; S ]
+S = [ sprintf('| %12s | %10s | %10s | %10s | %10s |', ...
+    'Classes', 'AP', 'CVPR11', 'PP', 'P') ; S ]
 
 %% Mean Average Precision
 
 disp(sprintf('Our    MAP = %f',  mean(AP)));
 
 disp(sprintf('CVPR11 MAP = %f',  mean(cvpr11_ap)));
+
+disp(sprintf('Improved trajectory paper MAP = %f', 64.3));

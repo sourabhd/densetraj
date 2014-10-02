@@ -1,5 +1,6 @@
 
-base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results';
+%base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results';
+base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Improved_Traj';
 train_dir = [ base_dir '/'  'train'];
 num_train_dir = 823;
 train_dir_glob = [ train_dir '/' 'actioncliptrain*.txt' ];
