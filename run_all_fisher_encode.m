@@ -110,7 +110,7 @@ feat_dim = 109056;
  
  f = '';
  
- matlabpool close force 
+ matlabpool close local force 
  matlabpool open local 8 
  % for every file 
  %for i = 1:num_test_dir
