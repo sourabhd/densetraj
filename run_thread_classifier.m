@@ -1,7 +1,7 @@
 function [model, predicted_label, accuracy, decision_values, probability_estimates, ...
         recall, precision, ap_info, testing_labels_fname, testing_labels_vector, ...
         pred_pos, actual_pos, loocvscore] = ...
-        run_thread_classifier(dset_dir, base_dir, cl, tr, te, fileorder, ...
+        run_thread_classifier(dset_dir, base_dir, cl, tr, te, tr_v, te_v, fileorder, ...
         retain_frac_threads) 
 
     t1 = tic;
@@ -14,79 +14,147 @@ function [model, predicted_label, accuracy, decision_values, probability_estimat
     fileorder.test_files
     size(tr.train_fv)
     size(te.test_fv)
+    size(tr_v.train_fv)
+    size(te_v.test_fv)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Parse labels file for training set
 
     labels_dict_file_train = sprintf('%s%s%s%s%s%s%s%s', dset_dir, '/', 'ClipSets', '/', cl, '_', 'train', '.txt');
     fprintf('%s\n', labels_dict_file_train); 
-    [training_labels_fname_f, training_labels_vector_f] = textread(labels_dict_file_train, '%s %d');
+    [training_labels_fname_video, training_labels_vector_video] = textread(labels_dict_file_train, '%s %d');
     tr_sz = size(tr.train_fv);
     num_tr = tr_sz(1);
     tr_fname = {};
     training_labels_vector = zeros(num_tr,1);
     for i = 1:num_tr
-        tr_fname{i} = char(training_labels_fname_f(tr.tr_r2t(i).fileNum,:));
-        training_labels_vector(i,1) = training_labels_vector_f(tr.tr_r2t(i).fileNum, :);
+        tr_fname{i} = char(training_labels_fname_video(tr.tr_r2t(i).fileNum,:));
+        training_labels_vector(i,1) = training_labels_vector_video(tr.tr_r2t(i).fileNum, :);
     end
     training_labels_fname = char(tr_fname);
 
 
+    % Parse labels file for testing set
     labels_dict_file_test = sprintf('%s%s%s%s%s%s%s%s', dset_dir, '/', 'ClipSets', '/', cl, '_', 'test', '.txt');
     fprintf('%s\n', labels_dict_file_test); 
-    [testing_labels_fname_f, testing_labels_vector_f] = textread(labels_dict_file_test, '%s %d');
+    [testing_labels_fname_video, testing_labels_vector_video] = textread(labels_dict_file_test, '%s %d');
     te_sz = size(te.test_fv);
     num_te = te_sz(1);
     te_fname = {};
     testing_labels_vector = zeros(num_te,1);
     for i = 1:num_te
-        te_fname{i} = char(testing_labels_fname_f(te.te_r2t(i).fileNum,:));
-        testing_labels_vector(i,1) = testing_labels_vector_f(te.te_r2t(i).fileNum, :);
+        te_fname{i} = char(testing_labels_fname_video(te.te_r2t(i).fileNum,:));
+        testing_labels_vector(i,1) = testing_labels_vector_video(te.te_r2t(i).fileNum, :);
     end
     testing_labels_fname = char(te_fname);
 
-    num_samples = size(training_labels_vector, 1);
-    weight_neg = sum(training_labels_vector == 1);   % inverse ratio of num of +ve and -ve
-    weight_pos = sum(training_labels_vector == -1);
 
-    opt = sprintf('-c 100 -w1 %f -w-1 %f -t 4', weight_pos, weight_neg);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Train a video level classifier
 
-    % Use precomputed training matrix for training
-    t_kern_start = tic;
-    Linear_K = tr.train_fv * tr.train_fv';
-    t_kern_elapsed = toc(t_kern_start);
-    fprintf('Kernel comp: %f sec\n', t_kern_elapsed);
+    num_samples_video = size(training_labels_vector_video, 1);
+    num_tr_video = size(training_labels_vector_video, 1);
+    num_te_video = size(testing_labels_vector_video, 1);
+    weight_neg_video = sum(training_labels_vector_video == 1);   % inverse ratio of num of +ve and -ve
+    weight_pos_video = sum(training_labels_vector_video == -1);
 
-    t_cv_start = tic;
-    n_fold = 3;
+    opt_video = sprintf('-c 100 -w1 %f -w-1 %f -t 4', weight_pos_video, weight_neg_video);
+
+    t_kern_start_video = tic;
+    Linear_K_video = tr_v.train_fv * tr_v.train_fv';
+    t_kern_elapsed_video = toc(t_kern_start_video);
+    fprintf('Kernel comp (video): %f sec\n', t_kern_elapsed_video);
+
+    t_cv_start_video = tic;
+    n_fold_video = 3;
     % Use AUC as criteria for validation and tuning hyper parameters
     valid_function = @(dec, labels) auc(dec, labels);  % also check validation_function.m in libsvm 
-    cv = do_binary_cross_validation(training_labels_vector, [ (1:num_tr)' Linear_K], opt, n_fold); 
-    t_cv_elapsed = toc(t_cv_start);
-    fprintf('Baseline AUC: %10f\t time = %10f \n', cv, t_cv_elapsed);
+    cv_video = do_binary_cross_validation(training_labels_vector_video, [ (1:num_tr_video)' Linear_K_video], opt_video, n_fold_video); 
+    t_cv_elapsed_video = toc(t_cv_start_video);
+    fprintf('Baseline AUC (video): %10f\t time = %10f \n', cv_video, t_cv_elapsed_video);
 
-    loocvscore = zeros(num_tr,1);
 
-    for j = 1:num_tr
-        K = Linear_K;
-        K(j,:) = [];
-        K(:,j) = [];
-        L = training_labels_vector;
-        L(j,:) = [];
-        loocvscore(j,1) = do_binary_cross_validation(L, [ (1:num_tr-1)' K ], opt, n_fold); 
-        loocvscore(j,1) = (cv -  loocvscore(j,1)) / cv;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Find LOOCV score for every thread
+
+    r_counter = 1;
+    t_keyset = {};
+    t_valueset = 1:num_tr;
+    for i = 1:num_tr_video
+        num_tr_vid_i = length(tr.tr_threads_with_fv{i});
+        for j = 1:num_tr_vid_i
+            t_key = sprintf('%8d_%8d', i, tr.tr_threads_with_fv{i}{j});
+            t_keyset{end+1} = t_key;
+            r_counter = r_counter + 1;
+        end
+    end
+    thread2row_map = containers.Map(t_keyset,t_valueset);
+
+
+    n_fold = 3;
+    num_tr_pos_video = sum(training_labels_vector_video == 1);
+    num_tr_pos = sum(training_labels_vector == 1);
+    num_tr_neg_video = sum(training_labels_vector_video == -1);
+    num_tr_neg = sum(training_labels_vector == -1);
+    loocvscore = zeros(num_tr_pos,1);
+    tr_threads_pos_ix = find(training_labels_vector == 1);
+    tr_threads_rpos_ix = cell(num_tr_pos,1);
+    tr_pos_counter = 1;
+    feat_dim = size(tr_v.train_fv,2);
+
+    for j = 1:num_tr                                                                                  % for every thread
+        v = tr.tr_r2t(j).fileNum;                                                                     % get video
+        if training_labels_vector_video(v,:) == 1                                                     % if +ve
+            K = Linear_K_video;                                                                       % drop the video fv
+            K(v,:) = [];
+            K(:,v) = [];
+            L = training_labels_vector_video;                                                         % and labels
+            L(v,:) = [];
+            num_tr_vid_v = length(tr.tr_threads_with_fv{v});
+            M = zeros(num_tr_vid_v-1,feat_dim);
+            k_cnt = 1;
+            for k = 1:num_tr_vid_v                                                                    % for all threads of v
+                t = tr.tr_threads_with_fv{v}{k};
+                if t ~= tr.tr_r2t(j).threadNum                                                        % except thread at row j
+                    thread_key = sprintf('%8d_%8d', v, tr.tr_threads_with_fv{v}{k});
+                    M(k_cnt,:) = tr.train_fv(thread2row_map(thread_key),:);                           % add to training set
+                    k_cnt = k_cnt + 1;
+                end
+            end
+
+            R = tr_v.train_fv;
+            R(v,:) = [];
+            S = R * M';
+            Kthreadj = [ K  S  ; S'   M * M'];
+
+            weight_neg = num_tr_pos_video - 1 + num_tr_vid_v - 1;                                     % inverse ratio of num of +ve and -ve
+            weight_pos = num_tr_neg_video;
+            opt = sprintf('-c 100 -w1 %f -w-1 %f -t 4', weight_pos, weight_neg);
+            loocvscore(tr_pos_counter,1) = do_binary_cross_validation(L, [ (1:num_tr_video-1+num_tr_vid_v-1)' Kthreadj ], opt, n_fold);
+            loocvscore(tr_pos_counter,1) = (cv_video -  loocvscore(tr_pos_counter,1)) / cv_video;                               % rank
+            tr_threads_rpos_ix{j} = tr_pos_counter;
+            tr_pos_counter = tr_pos_counter +  1;
+        end
     end
 
+    fprintf('LOOCV score computed \n');
+    disp(loocvscore);
 
-    num_pos = sum(training_labels_vector == 1);
-    num_neg = sum(training_labels_vector == -1);
-    num_pos_reduced = int32(retain_frac_threads * num_pos);           % prune irrelevant threads 
-    num_neg_reduced = num_neg;
-    [tr_sorted, tr_sorted_ix] = sort(loocvscore, 'descend');
-    tr_sorted_pos_ix = find(training_labels_vector(tr_sorted_ix,:) == 1);
-    tr_sorted_neg_ix = find(training_labels_vector(tr_sorted_ix,:) == -1);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Build model with irrelevant threads pruned
+
+    [tr_pos_loocv_sorted, tr_pos_loocv_sorted_ix] = sort(loocvscore, 'descend'); % sort +ve threads by loocv score ranks 
+    tr_pos_ub = sum(find(tr_pos_loocv_sorted > 0 )) / num_tr_pos;
+    fprintf('Fraction Upper Bound for %10s : %6f\n', cl, tr_pos_ub);
+    num_pos_reduced = int32(retain_frac_threads * num_tr_pos) ;                                       % fraction to retain
+    num_neg_reduced = num_tr_neg;
+    tr_sorted_pos_ix = tr_threads_pos_ix(tr_pos_loocv_sorted_ix,:);                                                           % +ve thread indices
+    tr_sorted_neg_ix = find(training_labels_vector == -1);                                            % -ve thread indices 
     tr_ix_pruned = [  tr_sorted_pos_ix(1:num_pos_reduced,:) ; tr_sorted_neg_ix(1:num_neg_reduced,:) ]; 
     num_tr_pruned = size(tr_ix_pruned,1);
 
 
-    opt2 = sprintf('-c 100 -w1 %f -w-1 %f -t 4', num_neg, num_pos);  % inverse ratio of num of +ve and -ve samples
+    opt2 = sprintf('-c 100 -w1 %f -w-1 %f -t 4', num_neg_reduced, num_pos_reduced);  % inverse ratio of num of +ve and -ve samples
     Linear_K_pruned  = tr.train_fv(tr_ix_pruned,:) * tr.train_fv(tr_ix_pruned,:)';
     Linear_KK_pruned = te.test_fv * tr.train_fv(tr_ix_pruned,:)';
     size(Linear_K_pruned)
@@ -112,10 +180,10 @@ function [model, predicted_label, accuracy, decision_values, probability_estimat
 
     probability_estimates = softmax_pr(decision_values_video);
     pred_pos = sum(decision_values_video > 0);
-    actual_pos = sum(testing_labels_vector_f == 1);
+    actual_pos = sum(testing_labels_vector_video == 1);
     fprintf('Predicted Number of positives: %d\n', pred_pos);
     fprintf('True number of positives: %d\n', actual_pos);
-    [recall, precision, ap_info] = vl_pr(testing_labels_vector_f, decision_values_video);
+    [recall, precision, ap_info] = vl_pr(testing_labels_vector_video, decision_values_video);
 
     t2 = toc(t1);
     fprintf('Time for : %s : %f sec\n', cl, t2);

@@ -25,7 +25,7 @@ classes = {
 };
 
 num_classes = 12;
-retain_frac_threads = 0.75;
+retain_frac_threads = 0.15;
 
 feature_dir = [ base_dir '/' 'fisher_thread' ];
 results_dir = [ base_dir '/' 'results_thread' ]; 
@@ -35,6 +35,16 @@ tr_f = load(train_file);
 te_f = load(test_file);
 size(tr_f.train_fv)
 size(te_f.test_fv)
+
+
+feature_dir_video = [ base_dir '/' 'fisher' ];
+train_file_video = [ feature_dir_video '/' 'train_fv.mat' ];
+test_file_video = [ feature_dir_video '/' 'test_fv.mat' ];
+tr_f_video = load(train_file_video);
+te_f_video = load(test_file_video);
+size(tr_f_video.train_fv)
+size(te_f_video.test_fv)
+
 fileorder_f = [ src_dir '/' 'fileorder.mat' ];
 fileorder = load(fileorder_f);
 retain_frac_threads_str = strrep(sprintf('%6.4f', retain_frac_threads), '.', '_');
@@ -67,7 +77,7 @@ parfor i = 1:num_classes
     test_fname{i}, test_true_labels{i}, ...
     pred_pos{i}, actual_pos{i}, ...
     loocvscore{i}] = ...
-    run_thread_classifier(dset_dir, base_dir, classes{i}, tr_f, te_f, fileorder, retain_frac_threads);
+    run_thread_classifier(dset_dir, base_dir, classes{i}, tr_f, te_f, tr_f_video, te_f_video, fileorder, retain_frac_threads);
 end
 delete(myPool);
 delete(myCluster.Jobs);
