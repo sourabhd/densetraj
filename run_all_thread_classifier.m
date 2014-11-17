@@ -25,7 +25,7 @@ classes = {
 };
 
 num_classes = 12;
-retain_frac_threads = 0.15;
+retain_frac_threads = 1.0;
 
 feature_dir = [ base_dir '/' 'fisher_thread' ];
 results_dir = [ base_dir '/' 'results_thread' ]; 
