@@ -149,64 +149,7 @@ function [model, predicted_label, accuracy, decision_values, probability_estimat
     num_tr_pruned = size(tr_ix_pruned,1);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%    % Find LOOCV score for every thread
-%
-%    tr_threads_pos_ix = find(training_labels_vector == 1);
-%    tr_threads_rpos_ix = cell(num_tr_pos,1);
-%    tr_pos_counter = 1;
-%    feat_dim = size(tr_v.train_fv,2);
-%
-%    for j = 1:num_tr                                                                                  % for every thread
-%        v = tr.tr_r2t(j).fileNum;                                                                     % get video
-%        if training_labels_vector_video(v,:) == 1                                                     % if +ve
-%            K = Linear_K_video;                                                                       % drop the video fv
-%            K(v,:) = [];
-%            K(:,v) = [];
-%            L = training_labels_vector_video;                                                         % and labels
-%            L(v,:) = [];
-%            num_tr_vid_v = length(tr.tr_threads_with_fv{v});
-%            M = zeros(num_tr_vid_v-1,feat_dim);
-%            k_cnt = 1;
-%            for k = 1:num_tr_vid_v                                                                    % for all threads of v
-%                t = tr.tr_threads_with_fv{v}{k};
-%                if t ~= tr.tr_r2t(j).threadNum                                                        % except thread at row j
-%                    thread_key = sprintf('%8d_%8d', v, tr.tr_threads_with_fv{v}{k});
-%                    M(k_cnt,:) = tr.train_fv(thread2row_map(thread_key),:);                           % add to training set
-%                    k_cnt = k_cnt + 1;
-%                end
-%            end
-%
-%            R = tr_v.train_fv;
-%            R(v,:) = [];
-%            S = R * M';
-%            Kthreadj = [ K  S  ; S'   M * M'];
-%
-%            weight_neg = num_tr_pos_video - 1 + num_tr_vid_v - 1;                                     % inverse ratio of num of +ve and -ve
-%            weight_pos = num_tr_neg_video;
-%            opt = sprintf('-c 1000 -w1 %f -w-1 %f -t 4', weight_pos, weight_neg);
-%            loocvscore(tr_pos_counter,1) = do_binary_cross_validation(L, [ (1:num_tr_video-1+num_tr_vid_v-1)' Kthreadj ], opt, n_fold);
-%            loocvscore(tr_pos_counter,1) = (cv_video -  loocvscore(tr_pos_counter,1)) / cv_video;                               % rank
-%            tr_threads_rpos_ix{j} = tr_pos_counter;
-%            tr_pos_counter = tr_pos_counter +  1;
-%        end
-%    end
-
-%    fprintf('LOOCV score computed \n');
-%    disp(loocvscore);
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Build model with irrelevant threads pruned
-
-%    [tr_pos_loocv_sorted, tr_pos_loocv_sorted_ix] = sort(loocvscore, 'descend'); % sort +ve threads by loocv score ranks 
-%    tr_pos_ub = sum(find(tr_pos_loocv_sorted > 0 )) / num_tr_pos;
-%    fprintf('Fraction Upper Bound for %10s : %6f\n', cl, tr_pos_ub);
-%    num_pos_reduced = int32(retain_frac_threads * num_tr_pos) ;                                       % fraction to retain
-%    num_neg_reduced = num_tr_neg;
-%    tr_sorted_pos_ix = tr_threads_pos_ix(tr_pos_loocv_sorted_ix,:);                                                           % +ve thread indices
-%    tr_sorted_neg_ix = find(training_labels_vector == -1);                                            % -ve thread indices 
-%    tr_ix_pruned = [  tr_sorted_pos_ix(1:num_pos_reduced,:) ; tr_sorted_neg_ix(1:num_neg_reduced,:) ]; 
-%    num_tr_pruned = size(tr_ix_pruned,1);
-
 
     opt2 = sprintf('-c 1000 -w1 %f -w-1 %f -t 4', num_neg_reduced, num_pos_reduced);  % inverse ratio of num of +ve and -ve samples
     Linear_K_pruned  = tr.train_fv(tr_ix_pruned,:) * tr.train_fv(tr_ix_pruned,:)';
@@ -220,44 +163,59 @@ function [model, predicted_label, accuracy, decision_values, probability_estimat
     model = svmtrain(training_labels_vector(tr_ix_pruned,:), [ (1:num_tr_pruned)' Linear_K_pruned], opt2); 
     %model = svmtrain(training_labels_vector_video, [ (1:num_tr_video)' Linear_K_pruned], opt2); 
 
-    [predicted_label, accuracy, decision_values] = svmpredict(testing_labels_vector, [ (1:num_te)' Linear_KK_pruned], model); 
+    feat_dim = size(tr.train_fv,2);
+    num_test_video = size(te.te_name,1);
+    thread_based_features_video = zeros(num_test_video,feat_dim);
+    for k = 1:num_test_video
+        tfv = zeros(1, feat_dim);
+        for l = 1:length(te.te_t2r_hmap{k})
+            tfv = tfv + te.test_fv(te.te_t2r_hmap{k}{l}(1), :);
+        end
+        thread_based_features_video(k,:) = tfv / norm(tfv);
+    end
+    Linear_KK_tbf_video = thread_based_features_video * tr.train_fv(tr_ix_pruned,:)';
+    disp(size(Linear_KK_tbf_video));
+    [predicted_label, accuracy, decision_values] = svmpredict(testing_labels_vector_video, [ (1:num_te_video)' Linear_KK_tbf_video], model); 
+    %[predicted_label, accuracy, decision_values] = svmpredict(testing_labels_vector, [ (1:num_te)' Linear_KK_pruned], model); 
     %[predicted_label_video, accuracy_video, decision_values_video] = svmpredict(testing_labels_vector_video, [ (1:num_te_video)' Linear_KK_pruned_video], model); 
 
 
-    num_test_video = size(te.te_name,1);
-    decision_values_max_video = zeros(num_test_video,1);
-    decision_values_min_video = zeros(num_test_video,1);
-    decision_values_mean_video = zeros(num_test_video,1);
-    decision_values_median_video = zeros(num_test_video,1);
+%    num_test_video = size(te.te_name,1);
+%    decision_values_max_video = zeros(num_test_video,1);
+%    decision_values_min_video = zeros(num_test_video,1);
+%    decision_values_mean_video = zeros(num_test_video,1);
+%    decision_values_median_video = zeros(num_test_video,1);
+%
+%    for k = 1:num_test_video
+%        dv_k = zeros(length(te.te_t2r_hmap{k}),1);
+%        for l = 1:length(te.te_t2r_hmap{k})
+%            dv_k(l,:) = decision_values(te.te_t2r_hmap{k}{l}(1), :);
+%        end
+%        decision_values_max_video(k,:) = max(dv_k);
+%        decision_values_min_video(k,:) = min(dv_k);
+%        decision_values_median_video(k,:) = median(dv_k);
+%        decision_values_mean_video(k,:) = mean(dv_k);
+%
+%        %decision_values_max_video(k,:) = max(max(dv_k), decision_values_video(k,:));
+%        %decision_values_min_video(k,:) = min(min(dv_k), decision_values_video(k,:));
+%        %decision_values_median_video(k,:) = median([dv_k ; decision_values_video(k,:)]);
+%        %decision_values_mean_video(k,:) = mean([dv_k ; decision_values_video(k,:)]  );
+%
+%        %decision_values_max_video(k,:) = decision_values_video(k,:);
+%        %decision_values_min_video(k,:) = decision_values_video(k,:);
+%        %decision_values_median_video(k,:) = decision_values_video(k,:);
+%        %decision_values_mean_video(k,:) = decision_values_video(k,:);
+%    end
 
-    for k = 1:num_test_video
-        dv_k = zeros(length(te.te_t2r_hmap{k}),1);
-        for l = 1:length(te.te_t2r_hmap{k})
-            dv_k(l,:) = decision_values(te.te_t2r_hmap{k}{l}(1), :);
-        end
-        decision_values_max_video(k,:) = max(dv_k);
-        decision_values_min_video(k,:) = min(dv_k);
-        decision_values_median_video(k,:) = median(dv_k);
-        decision_values_mean_video(k,:) = mean(dv_k);
 
-        %decision_values_max_video(k,:) = max(max(dv_k), decision_values_video(k,:));
-        %decision_values_min_video(k,:) = min(min(dv_k), decision_values_video(k,:));
-        %decision_values_median_video(k,:) = median([dv_k ; decision_values_video(k,:)]);
-        %decision_values_mean_video(k,:) = mean([dv_k ; decision_values_video(k,:)]  );
-
-        %decision_values_max_video(k,:) = decision_values_video(k,:);
-        %decision_values_min_video(k,:) = decision_values_video(k,:);
-        %decision_values_median_video(k,:) = decision_values_video(k,:);
-        %decision_values_mean_video(k,:) = decision_values_video(k,:);
-    end
-
-
-   probability_estimates = softmax_pr(decision_values_max_video);
-   pred_pos = sum(decision_values_max_video > 0);
+   probability_estimates = softmax_pr(decision_values);
+   pred_pos = sum(decision_values > 0);
    actual_pos = sum(testing_labels_vector_video == 1);
    fprintf('Predicted Number of positives: %d\n', pred_pos);
    fprintf('True number of positives: %d\n', actual_pos);
-   [recall, precision, ap_info] = vl_pr(testing_labels_vector_video, decision_values_max_video);
+   disp(size(testing_labels_vector_video));
+   disp(size(decision_values));
+   [recall, precision, ap_info] = vl_pr(testing_labels_vector_video, decision_values);
 
     t2 = toc(t1);
     fprintf('Time for : %s : %f sec\n', cl, t2);
