@@ -2,7 +2,7 @@ function [model, predicted_label, accuracy, decision_values, probability_estimat
         recall, precision, ap_info, testing_labels_fname, testing_labels_vector, ...
         pred_pos, actual_pos, loocvscore] = ...
         run_thread_classifier(dset_dir, base_dir, cl, tr, te, tr_v, te_v, fileorder, ...
-        retain_frac_threads) 
+        retain_frac_threads, Linear_K_video) 
 
     t1 = tic;
 
@@ -58,10 +58,10 @@ function [model, predicted_label, accuracy, decision_values, probability_estimat
     weight_neg_video = sum(training_labels_vector_video == 1);   % inverse ratio of num of +ve and -ve
     weight_pos_video = sum(training_labels_vector_video == -1);
 
-    opt_video = sprintf('-c 1000 -w1 %f -w-1 %f -t 4', weight_pos_video, weight_neg_video);
+    opt_video = sprintf('-c 100 -w1 %f -w-1 %f -t 4', weight_pos_video, weight_neg_video);
 
     t_kern_start_video = tic;
-    Linear_K_video = tr_v.train_fv * tr_v.train_fv';
+    %Linear_K_video = tr_v.train_fv * tr_v.train_fv';
     t_kern_elapsed_video = toc(t_kern_start_video);
     fprintf('Kernel comp (video): %f sec\n', t_kern_elapsed_video);
 
@@ -103,21 +103,23 @@ function [model, predicted_label, accuracy, decision_values, probability_estimat
     cv_auc = zeros(num_tr_pos,1);
     num_pos_reduced = 0;                                       % fraction to retain
     num_neg_reduced = num_tr_neg;
+    feat_dim = size(tr.train_fv,2);
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Find LOOCV thread for every thread
 
+    thread_based_features_tr_video = zeros(0,feat_dim);
     Linear_KK = tr.train_fv * tr_v.train_fv';   % kernel for validation
     weight_neg = num_tr_pos_video-1;
     weight_pos = num_tr_neg_video-1;
-    opt = sprintf('-c 1000 -w1 %f -w-1 %f -t 4', weight_pos, weight_neg);
+    opt = sprintf('-c 100 -w1 %f -w-1 %f -t 4', weight_pos, weight_neg);
     tr_pos_counter = 1;
     tr_ix_pruned = zeros(0,1);
     num_pos_reduced = 0;
     for v = 1:num_tr_video                                  % for every thread
+        num_tr_vid_v = length(tr.tr_threads_with_fv{v});
         if training_labels_vector_video(v,:) == 1                                                     % if +ve
-            num_tr_vid_v = length(tr.tr_threads_with_fv{v});
             K = Linear_K_video;                                                                       % drop the video fv
             K(v,:) = [];
             K(:,v) = [];
@@ -140,9 +142,32 @@ function [model, predicted_label, accuracy, decision_values, probability_estimat
             n = max(round(retain_frac_threads * num_tr_vid_v), 1); 
             num_pos_reduced = num_pos_reduced + n;
             sorted_val_ix = val_ix(dec_val_sorted_ix,:);
-            tr_ix_pruned = [  tr_ix_pruned ; sorted_val_ix(1:n,:)  ]; 
+            avg_feature_video = mean(tr.train_fv(sorted_val_ix,:), 1);
+            nm_avg_feature_video = norm(avg_feature_video);
+            if nm_avg_feature_video ~= 0
+                avg_feature_video = avg_feature_video / nm_avg_feature_video; 
+            else
+                avg_feature_video = zeros(1, feat_dim);
+            end
+            thread_based_features_tr_video = [ thread_based_features_tr_video ; avg_feature_video ];
+            tr_ix_pruned = [ tr_ix_pruned ; sorted_val_ix(1:n,:) ]; 
             tr_pos_counter = tr_pos_counter + 1;
+        else
+            for j = 1:num_tr_vid_v
+                t = tr.tr_threads_with_fv{v}{j};
+                thread_key = sprintf('%8d_%8d', v, t);
+                val_ix(j,:) = thread2row_map(thread_key);
+            end
+            avg_feature_video = mean(tr.train_fv(val_ix,:), 1);
+            nm_avg_feature_video = norm(avg_feature_video);
+            if nm_avg_feature_video ~= 0
+                avg_feature_video = avg_feature_video / nm_avg_feature_video; 
+            else
+                avg_feature_video = zeros(1, feat_dim);
+            end
+            thread_based_features_tr_video = [ thread_based_features_tr_video ; avg_feature_video ];
         end
+
     end
     tr_ix_pruned = [ tr_ix_pruned ; find(training_labels_vector == -1) ];
     num_neg_reduced = num_tr_neg;
@@ -151,29 +176,28 @@ function [model, predicted_label, accuracy, decision_values, probability_estimat
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Build model with irrelevant threads pruned
 
-    opt2 = sprintf('-c 1000 -w1 %f -w-1 %f -t 4', num_neg_reduced, num_pos_reduced);  % inverse ratio of num of +ve and -ve samples
-    Linear_K_pruned  = tr.train_fv(tr_ix_pruned,:) * tr.train_fv(tr_ix_pruned,:)';
-    Linear_KK_pruned = te.test_fv * tr.train_fv(tr_ix_pruned,:)';
-    %Linear_K_pruned  = tr_v.train_fv * tr_v.train_fv';
-    %Linear_KK_pruned = te.test_fv * tr_v.train_fv';
-    %Linear_KK_pruned_video = te_v.test_fv * tr_v.train_fv';
+    %opt2 = sprintf('-c 100 -w1 %f -w-1 %f -t 4', num_neg_reduced, num_pos_reduced);  % inverse ratio of num of +ve and -ve samples
+    opt2 = sprintf('-c 100 -w1 %f -w-1 %f -t 4', num_tr_neg_video, num_tr_pos_video); % 1 fv per video now % inverse ratio of num of +ve and -ve samples
+    % Linear_K_pruned  = tr.train_fv(tr_ix_pruned,:) * tr.train_fv(tr_ix_pruned,:)';
+    % Linear_KK_pruned = te.test_fv * tr.train_fv(tr_ix_pruned,:)';
+
+    Linear_K_pruned  = thread_based_features_tr_video * thread_based_features_tr_video';
+
     size(Linear_K_pruned)
     disp(num_tr_pruned)
     size((1:num_tr_pruned)')
-    model = svmtrain(training_labels_vector(tr_ix_pruned,:), [ (1:num_tr_pruned)' Linear_K_pruned], opt2); 
-    %model = svmtrain(training_labels_vector_video, [ (1:num_tr_video)' Linear_K_pruned], opt2); 
+    model = svmtrain(training_labels_vector_video, [ (1:num_tr_video)' Linear_K_pruned], opt2); 
 
-    feat_dim = size(tr.train_fv,2);
     num_test_video = size(te.te_name,1);
     thread_based_features_video = zeros(num_test_video,feat_dim);
-    for k = 1:num_test_video
+    for k = 1:num_te_video
         tfv = zeros(1, feat_dim);
         for l = 1:length(te.te_t2r_hmap{k})
             tfv = tfv + te.test_fv(te.te_t2r_hmap{k}{l}(1), :);
         end
         thread_based_features_video(k,:) = tfv / norm(tfv);
     end
-    Linear_KK_tbf_video = thread_based_features_video * tr.train_fv(tr_ix_pruned,:)';
+    Linear_KK_tbf_video = thread_based_features_video * thread_based_features_tr_video';
     disp(size(Linear_KK_tbf_video));
     [predicted_label, accuracy, decision_values] = svmpredict(testing_labels_vector_video, [ (1:num_te_video)' Linear_KK_tbf_video], model); 
     %[predicted_label, accuracy, decision_values] = svmpredict(testing_labels_vector, [ (1:num_te)' Linear_KK_pruned], model); 

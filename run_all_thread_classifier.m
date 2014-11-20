@@ -2,7 +2,31 @@
 clear all; close all; clc;
 t_start = tic;
 
-num_par_threads  = 4;
+run_desc = 'Train: avg of threead, Test: avg of threads, Retain Fraction: 1.0, LOOCV criteria: leave on one video, validate on threads of left video, avg normalized, avoid recomputing the kernel';
+fprintf('DESCRIPTION: %s\n', run_desc);
+
+rng('shuffle');
+rnd_out_prefix = char(randperm(26) + 96);
+
+script_fullname = mfilename('fullpath');
+[script_dir, script_name] = fileparts(script_fullname);
+
+
+if isempty(script_dir)
+    fprintf('SCRIPT NAME: %s\n', 'unknown');
+else
+    fprintf('SCRIPT NAME: %s\n', script_name);
+    if strcmp(script_dir, '')
+        fprintf('LAST GIT COMMIT: %s\n', 'unknown');
+    else
+        git_exec = '/usr/bin/git';
+        git_rev_cmd = sprintf('%s --git-dir=%s%s%s rev-parse HEAD', git_exec, script_dir, filesep, '.git');
+        [st, last_commit] = system(git_rev_cmd);
+        fprintf('LAST GIT COMMIT: %s\n', last_commit);
+    end
+end
+
+num_par_threads  = 6;
 
 dset_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2';
 % base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results';
@@ -48,8 +72,9 @@ size(te_f_video.test_fv)
 fileorder_f = [ src_dir '/' 'fileorder.mat' ];
 fileorder = load(fileorder_f);
 retain_frac_threads_str = strrep(sprintf('%6.4f', retain_frac_threads), '.', '_');
-results_file =  [ results_dir '/' 'classification__' retain_frac_threads_str '.mat'];
+results_file =  [ results_dir '/' rnd_out_prefix '__' 'classification__' retain_frac_threads_str '.mat'];
 
+fprintf('RESULTS_FILE: %s\n', results_file);
 
 mkdir(results_dir);
 
@@ -66,21 +91,23 @@ decision_values = cell(num_classes, 1);
 pred_pos = cell(num_classes, 1);
 actual_pos = cell(num_classes, 1);
 loocvscore = cell(num_classes, 1);
+Linear_K_video = tr_f_video.train_fv * tr_f_video.train_fv';
 
-myCluster = parcluster('local');
-delete(myCluster.Jobs);
-myPool = parpool(myCluster, num_par_threads);
-parfor i = 1:num_classes
+%myCluster = parcluster('local');
+%delete(myCluster.Jobs);
+%myPool = parpool(myCluster, num_par_threads);
+%parfor i = 1:num_classes
+for i = 1:num_classes
     fprintf('%s\n', classes{i});
     [model{i}, predicted_label{i}, accuracy{i}, decision_values{i}, probability_estimates{i}, ...
      recall{i}, precision{i}, ap_info{i}, ...
     test_fname{i}, test_true_labels{i}, ...
     pred_pos{i}, actual_pos{i}, ...
     loocvscore{i}] = ...
-    run_thread_classifier(dset_dir, base_dir, classes{i}, tr_f, te_f, tr_f_video, te_f_video, fileorder, retain_frac_threads);
+    run_thread_classifier(dset_dir, base_dir, classes{i}, tr_f, te_f, tr_f_video, te_f_video, fileorder, retain_frac_threads, Linear_K_video);
 end
-delete(myPool);
-delete(myCluster.Jobs);
+%delete(myPool);
+%delete(myCluster.Jobs);
 
 fprintf('\n');
 mean_ap = 0;
