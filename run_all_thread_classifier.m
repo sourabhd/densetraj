@@ -2,7 +2,7 @@
 clear all; close all; clc;
 t_start = tic;
 
-run_desc = 'Train: avg of threead, Test: avg of threads, Retain Fraction: 1.0, LOOCV criteria: leave on one video, validate on threads of left video, avg normalized, avoid recomputing the kernel';
+run_desc = 'Train: avg of threeads ==> all but one, Test: avg of threads, Retain Fraction: 1.0, LOOCV criteria: leave on one video, validate on threads of left video, avg normalized, avoid recomputing the kernel';
 fprintf('DESCRIPTION: %s\n', run_desc);
 
 rng('shuffle');
@@ -108,7 +108,6 @@ for i = 1:num_classes
 end
 %delete(myPool);
 %delete(myCluster.Jobs);
-
 fprintf('\n');
 mean_ap = 0;
 for i = 1:num_classes

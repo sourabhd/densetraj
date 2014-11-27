@@ -139,10 +139,12 @@ function [model, predicted_label, accuracy, decision_values, probability_estimat
             [pr_lbl, acc, dec_val] = svmpredict(ones(num_tr_vid_v,1), [ (1:num_tr_vid_v)' KK], model_leaveoneout); 
             disp(dec_val);
             [dec_val_sorted, dec_val_sorted_ix] = sort(dec_val, 'descend'); % sort +ve threads by loocv score ranks 
-            n = max(round(retain_frac_threads * num_tr_vid_v), 1); 
+            %n = max(round(retain_frac_threads * num_tr_vid_v), 1); 
+            n = max( num_tr_vid_v-1, 1);   % all but one 
             num_pos_reduced = num_pos_reduced + n;
             sorted_val_ix = val_ix(dec_val_sorted_ix,:);
-            avg_feature_video = mean(tr.train_fv(sorted_val_ix,:), 1);
+            sorted_val_ix_reduced = sorted_val_ix(1:n,:);
+            avg_feature_video = mean(tr.train_fv(sorted_val_ix_reduced,:), 1);
             nm_avg_feature_video = norm(avg_feature_video);
             if nm_avg_feature_video ~= 0
                 avg_feature_video = avg_feature_video / nm_avg_feature_video; 
@@ -150,7 +152,8 @@ function [model, predicted_label, accuracy, decision_values, probability_estimat
                 avg_feature_video = zeros(1, feat_dim);
             end
             thread_based_features_tr_video = [ thread_based_features_tr_video ; avg_feature_video ];
-            tr_ix_pruned = [ tr_ix_pruned ; sorted_val_ix(1:n,:) ]; 
+            %tr_ix_pruned = [ tr_ix_pruned ; sorted_val_ix(1:n,:) ]; 
+            tr_ix_pruned = [ tr_ix_pruned ; sorted_val_ix_reduced(1:n,:) ]; 
             tr_pos_counter = tr_pos_counter + 1;
         else
             for j = 1:num_tr_vid_v
