@@ -2,7 +2,7 @@
 clear all; close all; clc;
 t_start = tic;
 
-run_desc = 'Train: avg of threeads ==> all but one, Test: avg of threads, Retain Fraction: 1.0, LOOCV criteria: leave on one video, validate on threads of left video, avg normalized, avoid recomputing the kernel';
+run_desc = 'Convert to LSSVM trials: Train: avg of threeads ==> all but one, Test: avg of threads, Retain Fraction: 1.0, LOOCV criteria: leave on one video, validate on threads of left video, avg normalized, avoid recomputing the kernel';
 fprintf('DESCRIPTION: %s\n', run_desc);
 
 rng('shuffle');
@@ -92,6 +92,7 @@ pred_pos = cell(num_classes, 1);
 actual_pos = cell(num_classes, 1);
 loocvscore = cell(num_classes, 1);
 Linear_K_video = tr_f_video.train_fv * tr_f_video.train_fv';
+Linear_KK_video = te_f_video.test_fv * tr_f_video.train_fv';
 
 %myCluster = parcluster('local');
 %delete(myCluster.Jobs);
@@ -104,7 +105,9 @@ for i = 1:num_classes
     test_fname{i}, test_true_labels{i}, ...
     pred_pos{i}, actual_pos{i}, ...
     loocvscore{i}] = ...
-    run_thread_classifier(dset_dir, base_dir, classes{i}, tr_f, te_f, tr_f_video, te_f_video, fileorder, retain_frac_threads, Linear_K_video);
+    run_thread_classifier_lssvm(dset_dir, base_dir, ...
+        classes{i}, tr_f, te_f, tr_f_video, te_f_video, ...
+        fileorder, retain_frac_threads, Linear_K_video, Linear_KK_video);
 end
 %delete(myPool);
 %delete(myCluster.Jobs);
