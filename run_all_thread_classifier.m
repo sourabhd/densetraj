@@ -20,7 +20,9 @@ else
         fprintf('LAST GIT COMMIT: %s\n', 'unknown');
     else
         git_exec = '/usr/bin/git';
-        git_rev_cmd = sprintf('%s --git-dir=%s%s%s rev-parse HEAD', git_exec, script_dir, filesep, '.git');
+        git_rev_cmd = ...
+            sprintf('%s --git-dir=%s%s%s rev-parse HEAD', ...
+            git_exec, script_dir, filesep, '.git');
         [st, last_commit] = system(git_rev_cmd);
         fprintf('LAST GIT COMMIT: %s\n', last_commit);
     end
@@ -29,23 +31,22 @@ end
 num_par_threads  = 6;
 
 dset_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2';
-% base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/HollyWood2_BOF_Results';
 base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Improved_Traj';
 src_dir = '/nfs/bigeye/sdaptardar/actreg/densetraj';
 
-classes = {
-'AnswerPhone',
-'DriveCar',
-'Eat',
-'FightPerson',
-'GetOutCar',
-'HandShake',
-'HugPerson',
-'Kiss',
-'Run',
-'SitDown',
-'SitUp',
-'StandUp'
+classes = {    ...
+'AnswerPhone', ...
+'DriveCar',    ...
+'Eat',         ...
+'FightPerson', ...
+'GetOutCar',   ...
+'HandShake',   ...
+'HugPerson',   ...
+'Kiss',        ...
+'Run',         ...
+'SitDown',     ...
+'SitUp',       ...
+'StandUp'      ...
 };
 
 num_classes = 12;
@@ -71,8 +72,10 @@ size(te_f_video.test_fv)
 
 fileorder_f = [ src_dir '/' 'fileorder.mat' ];
 fileorder = load(fileorder_f);
-retain_frac_threads_str = strrep(sprintf('%6.4f', retain_frac_threads), '.', '_');
-results_file =  [ results_dir '/' rnd_out_prefix '__' 'classification__' retain_frac_threads_str '.mat'];
+retain_frac_threads_str = ... 
+    strrep(sprintf('%6.4f', retain_frac_threads), '.', '_');
+results_file = [ results_dir '/' rnd_out_prefix '__' 'classification__' ...
+    retain_frac_threads_str '.mat'];
 
 fprintf('RESULTS_FILE: %s\n', results_file);
 
@@ -94,21 +97,58 @@ loocvscore = cell(num_classes, 1);
 Linear_K_video = tr_f_video.train_fv * tr_f_video.train_fv';
 Linear_KK_video = te_f_video.test_fv * tr_f_video.train_fv';
 
+
 %myCluster = parcluster('local');
 %delete(myCluster.Jobs);
 %myPool = parpool(myCluster, num_par_threads);
 %parfor i = 1:num_classes
 for i = 1:num_classes
     fprintf('%s\n', classes{i});
-    [model{i}, predicted_label{i}, accuracy{i}, decision_values{i}, probability_estimates{i}, ...
-     recall{i}, precision{i}, ap_info{i}, ...
-    test_fname{i}, test_true_labels{i}, ...
-    pred_pos{i}, actual_pos{i}, ...
-    loocvscore{i}] = ...
-    run_thread_classifier_lssvm(dset_dir, base_dir, ...
-        classes{i}, tr_f, te_f, tr_f_video, te_f_video, ...
-        fileorder, retain_frac_threads, Linear_K_video, Linear_KK_video);
+
+    % Input params
+    param(i).dset_dir = dset_dir;
+    param(i).base_dir = base_dir;
+    param(i).cl = classes{i};
+    param(i).tr = tr_f;
+    param(i).te = te_f;
+    param(i).tr_v = tr_f_video;
+    param(i).te_v = te_f_video;
+    param(i).fileorder = fileorder;
+    param(i).retain_frac_threads = retain_frac_threads;
+    param(i).Linear_K_video = Linear_K_video;
+    param(i).Linear_KK_video = Linear_KK_video;
+
+    % Call our function
+    out(i) = run_thread_classifier_lssvm(param(i));
+
+    % Get output parameters
+%    model{i} = out(i).model;
+%    predicted_label{i} = out(i).predicted_label;
+%    accuracy{i} = out(i).accuracy;
+%    decision_values{i} = out(i).decision_values;
+%    probability_estimates{i} = out(i).probability_estimates;
+    recall{i} = out(i).recall;
+    precision{i} = out(i).precision;
+    ap_info{i} = out(i).ap_info;
+    test_fname{i} = out(i).testing_labels_fname;
+%    test_true_labels{i} = out(i).testing_labels_vector;
+%    pred_pos{i} = out(i).pred_pos;
+%    actual_pos{i} = out(i).actual_pos;
+%    loocvscore{i} = out(i).loocvscore;
+
+    % Earlier code for function call 
+%    [model{i}, predicted_label{i}, accuracy{i}, decision_values{i}, ...
+%    probability_estimates{i}, ...
+%    recall{i}, precision{i}, ap_info{i}, ...
+%    test_fname{i}, test_true_labels{i}, ...
+%    pred_pos{i}, actual_pos{i}, ...
+%    loocvscore{i}] = ...
+%    run_thread_classifier_lssvm(dset_dir, base_dir, ...
+%        classes{i}, tr_f, te_f, tr_f_video, te_f_video, ...
+%        fileorder, retain_frac_threads, Linear_K_video, Linear_KK_video);
+%
 end
+
 %delete(myPool);
 %delete(myCluster.Jobs);
 fprintf('\n');
