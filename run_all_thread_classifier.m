@@ -120,7 +120,7 @@ for i = 1:num_classes
 
     % Call our function
     classifier(i) = Classifier(param(i));
-    out(i) = classifier(i).run_thread_classifier_lssvm();
+    out(i) = classifier(i).videoLevelClassifier();
 
     % Get output parameters
 %    model{i} = out(i).model;
