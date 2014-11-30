@@ -128,56 +128,28 @@ for i = 1:num_classes
 
     % Call our function
     classifier(i) = Classifier(param(i));
-    out(i) = classifier(i).classifyByThreadSelection();
+    res(i) = classifier(i).classifyByThreadSelection();
 
-    % Get output parameters
-%    model{i} = out(i).model;
-%    predicted_label{i} = out(i).predicted_label;
-%    accuracy{i} = out(i).accuracy;
-%    decision_values{i} = out(i).decision_values;
-%    probability_estimates{i} = out(i).probability_estimates;
-    recall{i}     = out(i).lssvm_thread_baseline.recall;
-    precision{i}  = out(i).lssvm_thread_baseline.precision;
-    ap_info{i}    = out(i).lssvm_thread_baseline.ap_info;
-    test_fname{i} = out(i).testing_labels_fname;
-%    test_true_labels{i} = out(i).testing_labels_vector;
-%    pred_pos{i} = out(i).pred_pos;
-%    actual_pos{i} = out(i).actual_pos;
-%    loocvscore{i} = out(i).loocvscore;
-
-     % Earlier code for function call 
-%    [model{i}, predicted_label{i}, accuracy{i}, decision_values{i}, ...
-%    probability_estimates{i}, ...
-%    recall{i}, precision{i}, ap_info{i}, ...
-%    test_fname{i}, test_true_labels{i}, ...
-%    pred_pos{i}, actual_pos{i}, ...
-%    loocvscore{i}] = ...
-%    run_thread_classifier_lssvm(dset_dir, base_dir, ...
-%        classes{i}, tr_f, te_f, tr_f_video, te_f_video, ...
-%        fileorder, retain_frac_threads, Linear_K_video, Linear_KK_video);
-%
 end
 
 %delete(myPool);
 %delete(myCluster.Jobs);
+
+mAP.lssvm_video_baseline = ...
+    calc_mean_ap(classes, { res(:).lssvm_video_baseline });
+mAP.lssvm_thread_baseline = ... 
+    calc_mean_ap(classes, { res(:).lssvm_thread_baseline });
+
 fprintf('\n');
-mean_ap = 0;
-for i = 1:num_classes
-    fprintf('\n| %20s | %10f |',  classes{i}, ap_info{i}.ap);
-    mean_ap = mean_ap + ap_info{i}.ap;
-end
-mean_ap = mean_ap / num_classes;
+fprintf('Results : Mean Average Precision\n');
+fprintf('%-25s : %15f\n', 'Video baseline', mAP.lssvm_video_baseline);
+fprintf('%-25s : %15f\n', 'Thread baseline', mAP.lssvm_thread_baseline);
 fprintf('\n');
 
-fprintf('Mean AP : %f\n', mean_ap);
 
 save(results_file, '-v7.3', 'base_dir', ...
-    'mean_ap', 'retain_frac_threads', ...
-    'num_classes', 'classes', 'model', ...
-    'predicted_label', 'accuracy', 'decision_values', ...
-    'probability_estimates', ...
-    'recall', 'precision', 'ap_info', ...
-    'pred_pos', 'actual_pos', 'loocvscore');
+    'retain_frac_threads', ...
+    'num_classes', 'classes', 'res', 'mAP');
 
 t_elapsed = toc(t_start);
 fprintf('\nTotal time for classification : %f sec\n', t_elapsed);
