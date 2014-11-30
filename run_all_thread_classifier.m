@@ -2,7 +2,7 @@
 clear all; close all; clc;
 t_start = tic;
 
-run_desc = 'Convert to LSSVM trials: Train: avg of threeads ==> all but one, Test: avg of threads, Retain Fraction: 1.0, LOOCV criteria: leave on one video, validate on threads of left video, avg normalized, avoid recomputing the kernel';
+run_desc = 'Convert to LSSVM trials';
 fprintf('DESCRIPTION: %s\n', run_desc);
 
 rng('shuffle');
@@ -28,11 +28,11 @@ else
     end
 end
 
-num_par_threads  = 6;
+num_par_threads = 6;
 
 dset_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Hollywood2';
 base_dir = '/nfs/bigeye/sdaptardar/Datasets/Hollywood2/Improved_Traj';
-src_dir = '/nfs/bigeye/sdaptardar/actreg/densetraj';
+src_dir  = '/nfs/bigeye/sdaptardar/actreg/densetraj';
 
 classes = {    ...
 'AnswerPhone', ...
@@ -49,24 +49,24 @@ classes = {    ...
 'StandUp'      ...
 };
 
-num_classes = 12;
+num_classes         = 12;
 retain_frac_threads = 1.0;
 
 feature_dir = [ base_dir '/' 'fisher_thread' ];
-results_dir = [ base_dir '/' 'results_thread' ]; 
-train_file = [ feature_dir '/' 'train_fv.mat' ];
-test_file = [ feature_dir '/' 'test_fv.mat' ];
-tr_f = load(train_file);
-te_f = load(test_file);
+results_dir = [ base_dir '/' 'results_thread' ];
+train_file  = [ feature_dir '/' 'train_fv.mat' ];
+test_file   = [ feature_dir '/' 'test_fv.mat' ];
+tr_f        = load(train_file);
+te_f        = load(test_file);
 size(tr_f.train_fv)
 size(te_f.test_fv)
 
 
 feature_dir_video = [ base_dir '/' 'fisher' ];
-train_file_video = [ feature_dir_video '/' 'train_fv.mat' ];
-test_file_video = [ feature_dir_video '/' 'test_fv.mat' ];
-tr_f_video = load(train_file_video);
-te_f_video = load(test_file_video);
+train_file_video  = [ feature_dir_video '/' 'train_fv.mat' ];
+test_file_video   = [ feature_dir_video '/' 'test_fv.mat' ];
+tr_f_video        = load(train_file_video);
+te_f_video        = load(test_file_video);
 size(tr_f_video.train_fv)
 size(te_f_video.test_fv)
 
@@ -81,22 +81,28 @@ fprintf('RESULTS_FILE: %s\n', results_file);
 
 mkdir(results_dir);
 
-model = cell(num_classes, 1);
-predicted_label = cell(num_classes, 1);
-accuracy = cell(num_classes, 1);
+model                 = cell(num_classes, 1);
+predicted_label       = cell(num_classes, 1);
+accuracy              = cell(num_classes, 1);
 probability_estimates = cell(num_classes, 1);
-recall = cell(num_classes, 1);
-precision = cell(num_classes, 1);
-ap_info = cell(num_classes, 1);
-test_fname = cell(num_classes, 1);
-test_true_labels = cell(num_classes, 1);
-decision_values = cell(num_classes, 1);
-pred_pos = cell(num_classes, 1);
-actual_pos = cell(num_classes, 1);
-loocvscore = cell(num_classes, 1);
-Linear_K_video = tr_f_video.train_fv * tr_f_video.train_fv';
-Linear_KK_video = te_f_video.test_fv * tr_f_video.train_fv';
+recall                = cell(num_classes, 1);
+precision             = cell(num_classes, 1);
+ap_info               = cell(num_classes, 1);
+test_fname            = cell(num_classes, 1);
+test_true_labels      = cell(num_classes, 1);
+decision_values       = cell(num_classes, 1);
+pred_pos              = cell(num_classes, 1);
+actual_pos            = cell(num_classes, 1);
+loocvscore            = cell(num_classes, 1);
 
+% Compute the kernel matrices
+t_kernelcomp_start = tic;
+Linear_K_video  = tr_f_video.train_fv * tr_f_video.train_fv';
+Linear_KK_video = te_f_video.test_fv * tr_f_video.train_fv';
+Linear_K        = tr_f.train_fv * tr_f.train_fv';
+Linear_KK       = te_f.test_fv * tr_f.train_fv';
+t_kernelcomp_elapsed = toc(t_kernelcomp_start);
+fprintf('Kernel matrices computed in %f sec\n', t_kernelcomp_elapsed);
 
 %myCluster = parcluster('local');
 %delete(myCluster.Jobs);
@@ -106,21 +112,23 @@ for i = 1:num_classes
     fprintf('%s\n', classes{i});
 
     % Input params
-    param(i).dset_dir = dset_dir;
-    param(i).base_dir = base_dir;
-    param(i).cl = classes{i};
-    param(i).tr = tr_f;
-    param(i).te = te_f;
-    param(i).tr_v = tr_f_video;
-    param(i).te_v = te_f_video;
-    param(i).fileorder = fileorder;
+    param(i).dset_dir            = dset_dir;
+    param(i).base_dir            = base_dir;
+    param(i).cl                  = classes{i};
+    param(i).tr                  = tr_f;
+    param(i).te                  = te_f;
+    param(i).tr_v                = tr_f_video;
+    param(i).te_v                = te_f_video;
+    param(i).fileorder           = fileorder;
     param(i).retain_frac_threads = retain_frac_threads;
-    param(i).Linear_K_video = Linear_K_video;
-    param(i).Linear_KK_video = Linear_KK_video;
+    param(i).Linear_K_video      = Linear_K_video;
+    param(i).Linear_KK_video     = Linear_KK_video;
+    param(i).Linear_K            = Linear_K;
+    param(i).Linear_KK           = Linear_KK;
 
     % Call our function
     classifier(i) = Classifier(param(i));
-    out(i) = classifier(i).videoLevelClassifier();
+    out(i) = classifier(i).classifyByThreadSelection();
 
     % Get output parameters
 %    model{i} = out(i).model;
@@ -128,16 +136,16 @@ for i = 1:num_classes
 %    accuracy{i} = out(i).accuracy;
 %    decision_values{i} = out(i).decision_values;
 %    probability_estimates{i} = out(i).probability_estimates;
-    recall{i} = out(i).recall;
-    precision{i} = out(i).precision;
-    ap_info{i} = out(i).ap_info;
+    recall{i}     = out(i).recall_thread_baseline;
+    precision{i}  = out(i).precision_thread_baseline;
+    ap_info{i}    = out(i).ap_info_thread_baseline;
     test_fname{i} = out(i).testing_labels_fname;
 %    test_true_labels{i} = out(i).testing_labels_vector;
 %    pred_pos{i} = out(i).pred_pos;
 %    actual_pos{i} = out(i).actual_pos;
 %    loocvscore{i} = out(i).loocvscore;
 
-    % Earlier code for function call 
+     % Earlier code for function call 
 %    [model{i}, predicted_label{i}, accuracy{i}, decision_values{i}, ...
 %    probability_estimates{i}, ...
 %    recall{i}, precision{i}, ap_info{i}, ...
@@ -163,9 +171,13 @@ fprintf('\n');
 
 fprintf('Mean AP : %f\n', mean_ap);
 
-save(results_file, '-v7.3', 'base_dir', 'mean_ap', 'retain_frac_threads', 'num_classes', 'classes', 'model',...
-     'predicted_label', 'accuracy', 'decision_values', 'probability_estimates', ...
-     'recall', 'precision', 'ap_info', 'pred_pos', 'actual_pos', 'loocvscore');
+save(results_file, '-v7.3', 'base_dir', ...
+    'mean_ap', 'retain_frac_threads', ...
+    'num_classes', 'classes', 'model', ...
+    'predicted_label', 'accuracy', 'decision_values', ...
+    'probability_estimates', ...
+    'recall', 'precision', 'ap_info', ...
+    'pred_pos', 'actual_pos', 'loocvscore');
 
 t_elapsed = toc(t_start);
 fprintf('\nTotal time for classification : %f sec\n', t_elapsed);

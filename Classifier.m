@@ -10,9 +10,17 @@ classdef Classifier < handle
                 classifier.param = param;
             end
             run('/nfs/bigeye/sdaptardar/installs/vlfeat/toolbox/vl_setup')
+        end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+        function out = classifyByThreadSelection(classifier)
             classifier.parseLabels(); 
             classifier.initVars();
             classifier.mapThreadNum();
+            classifier.videoLevelClassifier();
+            classifier.threadLevelClassifier();
+            out = classifier.out;
         end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -66,31 +74,69 @@ classdef Classifier < handle
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-        function [out] = videoLevelClassifier(classifier)
+        function videoLevelClassifier(classifier)
             % Train a video level classifier
 
-            t1 = tic;
-
             t_cv_start_video = tic;
+
             lambda = 10^-3 * classifier.out.num_tr_video; 
+
             [alphas,b, cvErrs, cvWs, cvBs] = ...
                 ML_Ridge.kerRidgeReg_cv(classifier.param.Linear_K_video, ...
                 classifier.out.training_labels_vector_video, lambda, ...
                 ones(classifier.out.num_tr_video,1));
-            w = classifier.param.Linear_K_video*alphas;            
+
+            w = classifier.param.Linear_K_video * alphas;            
             decision_values_video = ...
                 classifier.param.Linear_KK_video * alphas + b; 
 
-           [classifier.out.recall, ...
-               classifier.out.precision, classifier.out.ap_info] = ...
-               vl_pr(classifier.out.testing_labels_vector_video, decision_values_video);
-            t_cv_elapsed_video = toc(t_cv_start_video);
-            fprintf('LSSVM (video): %10f\t time = %10f \n', ...
-                norm(cvErrs)/classifier.out.num_tr_video, t_cv_elapsed_video);
+           [classifier.out.recall_video_baseline, ...
+               classifier.out.precision_video_baseline, ...
+               classifier.out.ap_info_video_baseline] = ...
+               vl_pr(classifier.out.testing_labels_vector_video, ...
+               decision_values_video);
 
-            out = classifier.out;
-            t2 = toc(t1);
-            fprintf('Time for : %s : %f sec\n', classifier.param.cl, t2);
+            rmse_video_baseline = ...
+                sqrt( (norm(cvErrs)^2) / classifier.out.num_tr_video );
+
+            t_cv_elapsed_video = toc(t_cv_start_video);
+
+            fprintf('LSSVM (video): %s : %10f\t time = %10f \n', ...
+                classifier.param.cl, ...
+                rmse_video_baseline, t_cv_elapsed_video);
+        end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+        function threadLevelClassifier(classifier)
+            % Train a thread level classifier (use labels of videos)
+
+            t_ct_start = tic;
+
+            lambda = 10^-3 * classifier.out.num_tr; 
+
+            [alphas,b, cvErrs, cvWs, cvBs] = ...
+                ML_Ridge.kerRidgeReg_cv(classifier.param.Linear_K, ...
+                classifier.out.training_labels_vector, lambda, ...
+                ones(classifier.out.num_tr,1));
+
+            w = classifier.param.Linear_K * alphas;            
+            decision_values = ...
+                classifier.param.Linear_KK * alphas + b; 
+
+           [classifier.out.recall_thread_baseline, ...
+               classifier.out.precision_thread_baseline, ...
+               classifier.out.ap_info_thread_baseline] = ...
+               vl_pr(classifier.out.testing_labels_vector, decision_values);
+
+            rmse_thread_baseline = ...
+                sqrt( (norm(cvErrs)^2) / classifier.out.num_tr);
+
+            t_ct_elapsed = toc(t_ct_start);
+
+            fprintf('LSSVM (threads): %s :  %10f\t time = %10f \n', ...
+                classifier.param.cl, ...
+                rmse_thread_baseline, t_ct_elapsed);
         end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
