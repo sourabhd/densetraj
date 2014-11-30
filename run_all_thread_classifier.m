@@ -119,7 +119,8 @@ for i = 1:num_classes
     param(i).Linear_KK_video = Linear_KK_video;
 
     % Call our function
-    out(i) = run_thread_classifier_lssvm(param(i));
+    classifier(i) = Classifier(param(i));
+    out(i) = classifier(i).run_thread_classifier_lssvm();
 
     % Get output parameters
 %    model{i} = out(i).model;
