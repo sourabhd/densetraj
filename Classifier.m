@@ -20,6 +20,7 @@ classdef Classifier < handle
             classifier.mapThreadNum();
             classifier.videoLevelClassifier();
             classifier.threadLevelClassifier();
+            classifier.classifyByBestThreadSubsetClassifier();
             out = classifier.out;
         end
 
@@ -54,19 +55,24 @@ classdef Classifier < handle
             % Parse labels file for testing set
             labels_dict_file_test = ...
                 sprintf('%s%s%s%s%s%s%s%s', ...
-                classifier.param.dset_dir, '/', 'ClipSets', '/', classifier.param.cl, '_', 'test', '.txt');
+                classifier.param.dset_dir, '/', 'ClipSets', '/', ...
+                classifier.param.cl, '_', 'test', '.txt');
             fprintf('%s\n', labels_dict_file_test); 
-            [classifier.out.testing_labels_fname_video, classifier.out.testing_labels_vector_video] = ...
+            [classifier.out.testing_labels_fname_video, ...
+                classifier.out.testing_labels_vector_video] = ...
                 textread(labels_dict_file_test, '%s %d');
             te_sz = size(classifier.param.te.test_fv);
             classifier.out.num_te = te_sz(1);
             te_fname = {};
-            classifier.out.testing_labels_vector = zeros(classifier.out.num_te,1);
+            classifier.out.testing_labels_vector = ...
+                zeros(classifier.out.num_te,1);
             for i = 1:classifier.out.num_te
                 te_fname{i} = ...
-                    char(classifier.out.testing_labels_fname_video(classifier.param.te.te_r2t(i).fileNum,:));
+                    char(classifier.out.testing_labels_fname_video( ...
+                    classifier.param.te.te_r2t(i).fileNum,:));
                 classifier.out.testing_labels_vector(i,1) = ...
-                    classifier.out.testing_labels_vector_video(classifier.param.te.te_r2t(i).fileNum, :);
+                    classifier.out.testing_labels_vector_video( ...
+                    classifier.param.te.te_r2t(i).fileNum, :);
             end
             classifier.out.testing_labels_fname = char(te_fname);
 
@@ -142,21 +148,22 @@ classdef Classifier < handle
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         function mapThreadNum(classifier)
-                % Map thread numbers for lookup
+            % Map thread numbers for lookup
 
-                r_counter = 1;
-                t_keyset = {};
-                t_valueset = 1:classifier.out.num_tr;
-                for i = 1:classifier.out.num_tr_video
-                    num_tr_vid_i = ...
-                        length(classifier.param.tr.tr_threads_with_fv{i});
-                    for j = 1:num_tr_vid_i
-                        t_key = sprintf('%8d_%8d', i, classifier.param.tr.tr_threads_with_fv{i}{j});
-                        t_keyset{end+1} = t_key;
-                        r_counter = r_counter + 1;
-                    end
+            rCounter = 1;
+            tKeySet = {};
+            tValueSet = 1:classifier.out.num_tr;
+            for i = 1:classifier.out.num_tr_video
+                trNumThreadsVidi = ...
+                    length(classifier.param.tr.tr_threads_with_fv{i});
+                for j = 1:trNumThreadsVidi
+                    tKey = sprintf('%8d_%8d', i, ...
+                        classifier.param.tr.tr_threads_with_fv{i}{j});
+                    tKeySet{end+1} = tKey;
+                    rCounter = rCounter + 1;
                 end
-                thread2row_map = containers.Map(t_keyset,t_valueset);
+            end
+            classifier.out.thread2rowMap = containers.Map(tKeySet,tValueSet);
          end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -178,6 +185,29 @@ classdef Classifier < handle
                 sum(classifier.out.training_labels_vector == -1);
             %classifier.out.loocvscore = zeros(num_tr_pos,1);
             classifier.out.feat_dim = size(classifier.param.tr.train_fv,2);
+    end
+
+    function classifyByBestThreadSubsetClassifier(classifier)
+
+        for v = 1:classifier.out.num_tr_video
+
+            % Obtain the index of each thread in the train set
+            trThreadIndexRelVidv = classifier.param.tr.tr_threads_with_fv{v};
+            trNumThreadsVidv = length(trThreadIndexRelVidv);
+            trThreadIndexVidv = zeros(trNumThreadsVidv,1);
+            for t = 1:trNumThreadsVidv
+                tt = trThreadIndexRelVidv{t};
+                threadKey = sprintf('%8d_%8d', v, tt);
+                trThreadIndexVidv(t,:)=classifier.out.thread2rowMap(threadKey);
+            end
+
+            % Compute subsets of size N, N-1 ; N: num of threads
+            trThreadSubsetsVidv = get_subsets(trThreadIndexVidv, ...
+                classifier.param.subset_size_ub);
+            disp(trThreadSubsetsVidv);
+
+        
+        end
     end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
