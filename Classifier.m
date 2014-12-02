@@ -20,7 +20,7 @@ classdef Classifier < handle
             classifier.mapThreadNum();
             classifier.videoLevelClassifier();
             classifier.threadLevelClassifier();
-            classifier.classifyByBestThreadSubsetClassifier();
+            %classifier.classifyByBestThreadSubsetClassifier();
             out = classifier.out;
         end
 
