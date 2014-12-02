@@ -125,7 +125,7 @@ for i = 1:num_classes
     param(i).Linear_KK_video     = Linear_KK_video;
     param(i).Linear_K            = Linear_K;
     param(i).Linear_KK           = Linear_KK;
-    param(i).subset_size_ub      = 3;
+    param(i).subset_size_ub      = 2;
 
     % Call our function
     classifier(i) = Classifier(param(i));
