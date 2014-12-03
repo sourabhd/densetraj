@@ -17,7 +17,7 @@ classdef Classifier < handle
         function out = classifyByThreadSelection(classifier)
             classifier.parseLabels(); 
             classifier.initVars();
-            classifier.mapThreadNum();
+            %classifier.mapThreadNum();
             classifier.videoLevelClassifier();
             classifier.threadLevelClassifier();
             %classifier.classifyByBestThreadSubsetClassifier();
@@ -147,24 +147,24 @@ classdef Classifier < handle
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-        function mapThreadNum(classifier)
-            % Map thread numbers for lookup
-
-            rCounter = 1;
-            tKeySet = {};
-            tValueSet = 1:classifier.out.num_tr;
-            for i = 1:classifier.out.num_tr_video
-                trNumThreadsVidi = ...
-                    length(classifier.param.tr.tr_threads_with_fv{i});
-                for j = 1:trNumThreadsVidi
-                    tKey = sprintf('%8d_%8d', i, ...
-                        classifier.param.tr.tr_threads_with_fv{i}{j});
-                    tKeySet{end+1} = tKey;
-                    rCounter = rCounter + 1;
-                end
-            end
-            classifier.out.thread2rowMap = containers.Map(tKeySet,tValueSet);
-         end
+%        function mapThreadNum(classifier)
+%            % Map thread numbers for lookup
+%
+%            rCounter = 1;
+%            tKeySet = {};
+%            tValueSet = 1:classifier.out.num_tr;
+%            for i = 1:classifier.out.num_tr_video
+%                trNumThreadsVidi = ...
+%                    length(classifier.param.tr.tr_threads_with_fv{i});
+%                for j = 1:trNumThreadsVidi
+%                    tKey = sprintf('%8d_%8d', i, ...
+%                        classifier.param.tr.tr_threads_with_fv{i}{j});
+%                    tKeySet{end+1} = tKey;
+%                    rCounter = rCounter + 1;
+%                end
+%            end
+%            classifier.out.thread2rowMap = containers.Map(tKeySet,tValueSet);
+%         end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -188,70 +188,70 @@ classdef Classifier < handle
     end
 
 
-    function classifyByBestThreadSubsetClassifier(classifier)
-
-        classifier.out.numTrain = 0;
-        for v = 1:classifier.out.num_tr_video
-            n = length(classifier.param.tr.tr_threads_with_fv{v});
-            for k = n:n-classifier.param.subset_size_ub
-                classifier.out.numTrain = ...
-                    classifier.out.numTrain + nchoosek(n,k);
-            end
-        end
-
-        trXCtr = 1;
-        trX = zeros(classifier.out.numTrain,classifier.out.feat_dim);
-        for v = 1:classifier.out.num_tr_video
-
-            % Obtain the index of each thread in the train set
-            trThreadIndexRelVidv = classifier.param.tr.tr_threads_with_fv{v};
-            trNumThreadsVidv = length(trThreadIndexRelVidv);
-            trThreadIndexVidv = zeros(trNumThreadsVidv,1);
-            for t = 1:trNumThreadsVidv
-                tt = trThreadIndexRelVidv{t};
-                threadKey = sprintf('%8d_%8d', v, tt);
-                trThreadIndexVidv(t,:)=classifier.out.thread2rowMap(threadKey);
-%                trThreadIndexHmapVSVidv(tt) = t;
-            end
-%            trThreadIndexHmapVidv = ...
-%                containers.Map(1:trNumThreadsVidv,trThreadIndexHmapVSVidv);
-
-            % Calculate cumsum for DP
-            cumsumVidv = cumsum( ...
-                classifier.param.tr.train_fv(trThreadIndexVidv,:),1);
-            cumsumZVidv = [ zeros(1, classifier.out.feat_dim) ; cumsumVidv ];
-
-            % Compute subsets of size N, N-1, ... ; N: num of threads
-            %trThreadSubsetsVidv = get_subsets(trThreadIndexRelVidv, ...
-            trThreadSubsetsVidv = get_subsets(1:trNumThreadsVidv, ...
-                classifier.param.subset_size_ub);
-            %disp(trThreadSubsetsVidv);
-
-            % Normalized average features
-            numSz = length(trThreadSubsetsVidv);
-            for sz = 1:numSz
-                lenSz = size(trThreadSubsetsVidv{sz},1);
-                for i = 1:lenSz
-                    %    trX = [trX ; normavg(classifier.param.tr.train_fv, ...
-                    %        trThreadSubsetsVidv{sz}(i))];
-
-%                    disp(trThreadSubsetsVidv{sz}(i,:));
-%                    trX = [ trX ; ...
-%                        normavg2(cumsumZVidv,trThreadSubsetsVidv{sz}(i,:))]; 
-%                    size(trX)
+%    function classifyByBestThreadSubsetClassifier(classifier)
 %
-                    trX(trXCtr,:) = ... 
-                        normavg2(cumsumZVidv,trThreadSubsetsVidv{sz}(i,:)); 
-                    trXCtr = trXCtr + 1;
-                    if mod(trXCtr, 1000) == 0
-                        fprintf('%d\n', trXCtr);
-                    end
-                end
-            end
-        end
-        fprintf('Total size\n');
-        size(trX)
-    end
+%        classifier.out.numTrain = 0;
+%        for v = 1:classifier.out.num_tr_video
+%            n = length(classifier.param.tr.tr_threads_with_fv{v});
+%            for k = n:n-classifier.param.subset_size_ub
+%                classifier.out.numTrain = ...
+%                    classifier.out.numTrain + nchoosek(n,k);
+%            end
+%        end
+%
+%        trXCtr = 1;
+%        trX = zeros(classifier.out.numTrain,classifier.out.feat_dim);
+%        for v = 1:classifier.out.num_tr_video
+%
+%            % Obtain the index of each thread in the train set
+%            trThreadIndexRelVidv = classifier.param.tr.tr_threads_with_fv{v};
+%            trNumThreadsVidv = length(trThreadIndexRelVidv);
+%            trThreadIndexVidv = zeros(trNumThreadsVidv,1);
+%            for t = 1:trNumThreadsVidv
+%                tt = trThreadIndexRelVidv{t};
+%                threadKey = sprintf('%8d_%8d', v, tt);
+%                trThreadIndexVidv(t,:)=classifier.param.thread2rowMap(threadKey);
+%%                trThreadIndexHmapVSVidv(tt) = t;
+%            end
+%%            trThreadIndexHmapVidv = ...
+%%                containers.Map(1:trNumThreadsVidv,trThreadIndexHmapVSVidv);
+%
+%            % Calculate cumsum for DP
+%            cumsumVidv = cumsum( ...
+%                classifier.param.tr.train_fv(trThreadIndexVidv,:),1);
+%            cumsumZVidv = [ zeros(1, classifier.out.feat_dim) ; cumsumVidv ];
+%
+%            % Compute subsets of size N, N-1, ... ; N: num of threads
+%            %trThreadSubsetsVidv = get_subsets(trThreadIndexRelVidv, ...
+%            trThreadSubsetsVidv = get_subsets(1:trNumThreadsVidv, ...
+%                classifier.param.subset_size_ub);
+%            %disp(trThreadSubsetsVidv);
+%
+%            % Normalized average features
+%            numSz = length(trThreadSubsetsVidv);
+%            for sz = 1:numSz
+%                lenSz = size(trThreadSubsetsVidv{sz},1);
+%                for i = 1:lenSz
+%                    %    trX = [trX ; normavg(classifier.param.tr.train_fv, ...
+%                    %        trThreadSubsetsVidv{sz}(i))];
+%
+%%                    disp(trThreadSubsetsVidv{sz}(i,:));
+%%                    trX = [ trX ; ...
+%%                        normavg2(cumsumZVidv,trThreadSubsetsVidv{sz}(i,:))]; 
+%%                    size(trX)
+%%
+%                    trX(trXCtr,:) = ... 
+%                        normavg2(cumsumZVidv,trThreadSubsetsVidv{sz}(i,:)); 
+%                    trXCtr = trXCtr + 1;
+%                    if mod(trXCtr, 1000) == 0
+%                        fprintf('%d\n', trXCtr);
+%                    end
+%                end
+%            end
+%        end
+%        fprintf('Total size\n');
+%        size(trX)
+%    end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %% % Find LOOCV thread for every thread
