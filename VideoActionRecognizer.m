@@ -144,23 +144,28 @@ classdef VideoActionRecognizer < handle
                 fprintf('%s\n', ar.prop.classes{i});
 
                 % Input params
-                param(i).dset_dir            = ar.prop.dset_dir;
-                param(i).base_dir            = ar.prop.base_dir;
-                param(i).cl                  = ar.prop.classes{i};
-                param(i).tr                  = ar.prop.tr_f;
-                param(i).te                  = ar.prop.te_f;
-                param(i).tr_v                = ar.prop.tr_f_video;
-                param(i).te_v                = ar.prop.te_f_video;
-                param(i).fileorder           = ar.prop.fileorder;
-                param(i).retain_frac_threads = ar.prop.retain_frac_threads;
-                param(i).Linear_K_video      = ar.prop.Linear_K_video;
-                param(i).Linear_KK_video     = ar.prop.Linear_KK_video;
-                param(i).Linear_K            = ar.prop.Linear_K;
-                param(i).Linear_KK           = ar.prop.Linear_KK;
-                param(i).subset_size_ub      = ar.prop.subset_size_ub;
-                param(i).trThread2rowMap     = ar.prop.trThread2rowMap;
-                param(i).teThread2rowMap     = ar.prop.teThread2rowMap;
-                param(i).trX                 = ar.prop.trX;
+                param(i).dset_dir             = ar.prop.dset_dir;
+                param(i).base_dir             = ar.prop.base_dir;
+                param(i).cl                   = ar.prop.classes{i};
+                param(i).tr                   = ar.prop.tr_f;
+                param(i).te                   = ar.prop.te_f;
+                param(i).tr_v                 = ar.prop.tr_f_video;
+                param(i).te_v                 = ar.prop.te_f_video;
+                param(i).fileorder            = ar.prop.fileorder;
+                param(i).retain_frac_threads  = ar.prop.retain_frac_threads;
+                param(i).Linear_K_video       = ar.prop.Linear_K_video;
+                param(i).Linear_KK_video      = ar.prop.Linear_KK_video;
+                param(i).Linear_K             = ar.prop.Linear_K;
+                param(i).Linear_KK            = ar.prop.Linear_KK;
+                param(i).subset_size_ub       = ar.prop.subset_size_ub;
+                param(i).trThread2rowMap      = ar.prop.trThread2rowMap;
+                param(i).teThread2rowMap      = ar.prop.teThread2rowMap;
+                param(i).trX                  = ar.prop.trX;
+                param(i).teX                  = ar.prop.teX;
+                param(i).numTrainSamplesVideo = ar.prop.numTrainSamplesVideo;
+                param(i).numTestSamplesVideo  = ar.prop.numTestSamplesVideo;
+                param(i).numTrainSamples      = ar.prop.numTrainSamples;
+                param(i).numTestSamples       = ar.prop.numTestSamples;
 
                 % Call our function
                 classifier(i) = Classifier(param(i));
@@ -168,7 +173,6 @@ classdef VideoActionRecognizer < handle
 
             end
         end
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -195,6 +199,7 @@ classdef VideoActionRecognizer < handle
 %                'ar.prop.res', 'ar.prop.mAP');
 
         end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         function mapTrThreadNum(ar)
@@ -240,14 +245,17 @@ classdef VideoActionRecognizer < handle
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     function createTrainSet(ar)
-
+        ar.prop.numTrainSamplesVideo = zeros(ar.prop.num_tr_video,1);
         ar.prop.numTrainSamples = 0;
         for v = 1:ar.prop.num_tr_video
             n = length(ar.prop.tr_f.tr_threads_with_fv{v});
+            ar.prop.numTrainSamplesVideo(v) = 0;
             for k = n:n-ar.prop.subset_size_ub
-                ar.prop.numTrainSamples = ...
-                    ar.prop.numTrainSamples + nchoosek(n,k);
+                ar.prop.numTrainSamplesVideo(v) = ...
+                    ar.prop.numTrainSamplesVideo(v) + nchoosek(n,k);
             end
+            ar.prop.numTrainSamples = ar.prop.numTrainSamples + ...
+                ar.prop.numTrainSamplesVideo(v);
         end
 
         trXCtr = 1;
@@ -314,13 +322,17 @@ classdef VideoActionRecognizer < handle
 
     function createTestSet(ar)
 
+        ar.prop.numTestSamplesVideo = zeros(ar.prop.num_te_video,1);
         ar.prop.numTestSamples = 0;
         for v = 1:ar.prop.num_te_video
             n = length(ar.prop.te_f.te_threads_with_fv{v});
+            ar.prop.numTestSamplesVideo(v) = 0;
             for k = n:n-ar.prop.subset_size_ub
-                ar.prop.numTestSamples = ...
-                    ar.prop.numTestSamples + nchoosek(n,k);
+                ar.prop.numTestSamplesVideo(v) = ...
+                    ar.prop.numTestSamplesVideo(v) + nchoosek(n,k);
             end
+            ar.prop.numTestSamples = ar.prop.numTestSamples + ...
+                ar.prop.numTestSamplesVideo(v);
         end
 
         teXCtr = 1;

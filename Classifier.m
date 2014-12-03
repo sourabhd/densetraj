@@ -29,6 +29,7 @@ classdef Classifier < handle
         function parseLabels(classifier)
             % Parse labels file for training set
 
+            % video
             labels_dict_file_train = ...
                 sprintf('%s%s%s%s%s%s%s%s', ...
                 classifier.param.dset_dir, '/', 'ClipSets', '/', ...
@@ -39,7 +40,9 @@ classdef Classifier < handle
                 textread(labels_dict_file_train, '%s %d');
             tr_sz = size(classifier.param.tr.train_fv);
             classifier.out.num_tr = tr_sz(1);
-            tr_fname = {};
+
+            % threads
+            tr_fname = cell(classifier.out.num_tr,1);
             classifier.out.training_labels_vector = ...
                 zeros(classifier.out.num_tr,1);
             for i = 1:classifier.out.num_tr
@@ -52,6 +55,33 @@ classdef Classifier < handle
             end
             classifier.out.training_labels_fname = char(tr_fname);
 
+            % thread subsets + videos augmented training set
+            classifier.out.num_tr_aug = size(classifier.param.trX, 1);
+            classifier.out.training_labels_vector_aug = ...
+                zeros(classifier.out.num_tr,1);
+            classifier.out.training_labels_fname_aug  = ...
+                cell(classifier.out.num_tr_aug,1);
+            lblIdx = 1;
+            classifier.out.num_tr_video = size( ...
+                classifier.out.training_labels_vector_video,1);
+            for i = 1:classifier.out.num_tr_video
+                classifier.out.training_labels_vector_aug( ...
+                    lblIdx:lblIdx+classifier.param.numTrainSamplesVideo(i)-1)...
+                    = repmat([classifier.out.training_labels_vector_video],...
+                             classifier.param.numTrainSamplesVideo(i),1);
+
+                for j = 1:classifier.param.numTrainSamplesVideo(i)
+                    classifier.out.training_labels_fname_aug(lblIdx+j-1) = ...
+                        classifier.out.training_labels_fname_video(i,:);
+                end
+
+                lblIdx = lblIdx + classifier.param.numTrainSamplesVideo(i);
+            end
+
+            classifier.out.training_labels_vector_aug = ...
+                [  classifier.out.training_labels_vector_aug ; ...
+                   classifier.out.training_labels_vector_video ];
+            
             % Parse labels file for testing set
             labels_dict_file_test = ...
                 sprintf('%s%s%s%s%s%s%s%s', ...
@@ -63,7 +93,7 @@ classdef Classifier < handle
                 textread(labels_dict_file_test, '%s %d');
             te_sz = size(classifier.param.te.test_fv);
             classifier.out.num_te = te_sz(1);
-            te_fname = {};
+            te_fname = cell(classifier.out.num_te,1);
             classifier.out.testing_labels_vector = ...
                 zeros(classifier.out.num_te,1);
             for i = 1:classifier.out.num_te
@@ -75,6 +105,34 @@ classdef Classifier < handle
                     classifier.param.te.te_r2t(i).fileNum, :);
             end
             classifier.out.testing_labels_fname = char(te_fname);
+
+
+            % thread subsets + videos augmented test set
+            classifier.out.num_te_video = size( ...
+                classifier.out.testing_labels_vector_video,1);
+            classifier.out.num_te_aug = size(classifier.param.teX, 1);
+            classifier.out.testing_labels_vector_aug = ...
+                zeros(classifier.out.num_te,1);
+            classifier.out.testing_labels_fname_aug  = ...
+                cell(classifier.out.num_te_aug,1);
+            lblIdx = 1;
+            for i = 1:classifier.out.num_te_video
+                classifier.out.testing_labels_vector_aug( ...
+                    lblIdx:lblIdx+classifier.param.numTestSamplesVideo(i)-1)...
+                    = repmat([classifier.out.testing_labels_vector_video],...
+                             classifier.param.numTestSamplesVideo(i),1);
+
+                for j = 1:classifier.param.numTestSamplesVideo(i)
+                    classifier.out.testing_labels_fname_aug(lblIdx+j-1) = ...
+                        classifier.out.testing_labels_fname_video(i,:);
+                end
+
+                lblIdx = lblIdx + classifier.param.numTestSamplesVideo(i);
+            end
+
+            classifier.out.testing_labels_vector_aug = ...
+                [  classifier.out.testing_labels_vector_aug ; ...
+                   classifier.out.testing_labels_vector_video ];
 
         end
 
@@ -145,36 +203,12 @@ classdef Classifier < handle
                 lssvm.rmse, t_ct_elapsed);
         end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%        function mapThreadNum(classifier)
-%            % Map thread numbers for lookup
-%
-%            rCounter = 1;
-%            tKeySet = {};
-%            tValueSet = 1:classifier.out.num_tr;
-%            for i = 1:classifier.out.num_tr_video
-%                trNumThreadsVidi = ...
-%                    length(classifier.param.tr.tr_threads_with_fv{i});
-%                for j = 1:trNumThreadsVidi
-%                    tKey = sprintf('%8d_%8d', i, ...
-%                        classifier.param.tr.tr_threads_with_fv{i}{j});
-%                    tKeySet{end+1} = tKey;
-%                    rCounter = rCounter + 1;
-%                end
-%            end
-%            classifier.out.thread2rowMap = containers.Map(tKeySet,tValueSet);
-%         end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     function initVars(classifier) 
         %  Some declarations
 
-            classifier.out.num_tr_video = size( ...
-                classifier.out.training_labels_vector_video,1);
-            classifier.out.num_te_video = size( ...
-                classifier.out.testing_labels_vector_video,1);
             classifier.out.num_tr_pos_video = ... 
                 sum( classifier.out.training_labels_vector_video == 1);
             classifier.out.num_tr_pos = ...
@@ -188,70 +222,6 @@ classdef Classifier < handle
     end
 
 
-%    function classifyByBestThreadSubsetClassifier(classifier)
-%
-%        classifier.out.numTrain = 0;
-%        for v = 1:classifier.out.num_tr_video
-%            n = length(classifier.param.tr.tr_threads_with_fv{v});
-%            for k = n:n-classifier.param.subset_size_ub
-%                classifier.out.numTrain = ...
-%                    classifier.out.numTrain + nchoosek(n,k);
-%            end
-%        end
-%
-%        trXCtr = 1;
-%        trX = zeros(classifier.out.numTrain,classifier.out.feat_dim);
-%        for v = 1:classifier.out.num_tr_video
-%
-%            % Obtain the index of each thread in the train set
-%            trThreadIndexRelVidv = classifier.param.tr.tr_threads_with_fv{v};
-%            trNumThreadsVidv = length(trThreadIndexRelVidv);
-%            trThreadIndexVidv = zeros(trNumThreadsVidv,1);
-%            for t = 1:trNumThreadsVidv
-%                tt = trThreadIndexRelVidv{t};
-%                threadKey = sprintf('%8d_%8d', v, tt);
-%                trThreadIndexVidv(t,:)=classifier.param.thread2rowMap(threadKey);
-%%                trThreadIndexHmapVSVidv(tt) = t;
-%            end
-%%            trThreadIndexHmapVidv = ...
-%%                containers.Map(1:trNumThreadsVidv,trThreadIndexHmapVSVidv);
-%
-%            % Calculate cumsum for DP
-%            cumsumVidv = cumsum( ...
-%                classifier.param.tr.train_fv(trThreadIndexVidv,:),1);
-%            cumsumZVidv = [ zeros(1, classifier.out.feat_dim) ; cumsumVidv ];
-%
-%            % Compute subsets of size N, N-1, ... ; N: num of threads
-%            %trThreadSubsetsVidv = get_subsets(trThreadIndexRelVidv, ...
-%            trThreadSubsetsVidv = get_subsets(1:trNumThreadsVidv, ...
-%                classifier.param.subset_size_ub);
-%            %disp(trThreadSubsetsVidv);
-%
-%            % Normalized average features
-%            numSz = length(trThreadSubsetsVidv);
-%            for sz = 1:numSz
-%                lenSz = size(trThreadSubsetsVidv{sz},1);
-%                for i = 1:lenSz
-%                    %    trX = [trX ; normavg(classifier.param.tr.train_fv, ...
-%                    %        trThreadSubsetsVidv{sz}(i))];
-%
-%%                    disp(trThreadSubsetsVidv{sz}(i,:));
-%%                    trX = [ trX ; ...
-%%                        normavg2(cumsumZVidv,trThreadSubsetsVidv{sz}(i,:))]; 
-%%                    size(trX)
-%%
-%                    trX(trXCtr,:) = ... 
-%                        normavg2(cumsumZVidv,trThreadSubsetsVidv{sz}(i,:)); 
-%                    trXCtr = trXCtr + 1;
-%                    if mod(trXCtr, 1000) == 0
-%                        fprintf('%d\n', trXCtr);
-%                    end
-%                end
-%            end
-%        end
-%        fprintf('Total size\n');
-%        size(trX)
-%    end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %% % Find LOOCV thread for every thread
