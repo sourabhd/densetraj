@@ -20,7 +20,7 @@ classdef Classifier < handle
             %classifier.mapThreadNum();
             classifier.videoLevelClassifier();
             classifier.threadLevelClassifier();
-            %classifier.classifyByBestThreadSubsetClassifier();
+            classifier.augLevelClassifier();
             out = classifier.out;
         end
 
@@ -58,17 +58,22 @@ classdef Classifier < handle
             % thread subsets + videos augmented training set
             classifier.out.num_tr_aug = size(classifier.param.trX, 1);
             classifier.out.training_labels_vector_aug = ...
-                zeros(classifier.out.num_tr,1);
+                zeros(classifier.out.num_tr_aug,1);
             classifier.out.training_labels_fname_aug  = ...
                 cell(classifier.out.num_tr_aug,1);
             lblIdx = 1;
             classifier.out.num_tr_video = size( ...
                 classifier.out.training_labels_vector_video,1);
             for i = 1:classifier.out.num_tr_video
-                classifier.out.training_labels_vector_aug( ...
-                    lblIdx:lblIdx+classifier.param.numTrainSamplesVideo(i)-1)...
-                    = repmat([classifier.out.training_labels_vector_video],...
-                             classifier.param.numTrainSamplesVideo(i),1);
+%                classifier.out.training_labels_vector_aug( ...
+%                lblIdx:lblIdx+classifier.param.numTrainSamplesVideo(i),:)...
+%                 = repmat([classifier.out.training_labels_vector_video(i)],...
+%                             classifier.param.numTrainSamplesVideo(i),1);
+
+                for j = 1:classifier.param.numTrainSamplesVideo(i)
+                    classifier.out.training_labels_vector_aug(lblIdx+j-1) = ...
+                        classifier.out.training_labels_vector_video(i);
+                end
 
                 for j = 1:classifier.param.numTrainSamplesVideo(i)
                     classifier.out.training_labels_fname_aug(lblIdx+j-1) = ...
@@ -78,9 +83,11 @@ classdef Classifier < handle
                 lblIdx = lblIdx + classifier.param.numTrainSamplesVideo(i);
             end
 
-            classifier.out.training_labels_vector_aug = ...
-                [  classifier.out.training_labels_vector_aug ; ...
-                   classifier.out.training_labels_vector_video ];
+            fprintf('lblIdx  %d\n', lblIdx);
+            size(classifier.out.training_labels_vector_aug)
+            size(classifier.out.training_labels_vector_video)
+            classifier.out.training_labels_vector_aug(lblIdx:end,:) = ...
+                   classifier.out.training_labels_vector_video(:);
             
             % Parse labels file for testing set
             labels_dict_file_test = ...
@@ -112,15 +119,20 @@ classdef Classifier < handle
                 classifier.out.testing_labels_vector_video,1);
             classifier.out.num_te_aug = size(classifier.param.teX, 1);
             classifier.out.testing_labels_vector_aug = ...
-                zeros(classifier.out.num_te,1);
+                zeros(classifier.out.num_te_aug,1);
             classifier.out.testing_labels_fname_aug  = ...
                 cell(classifier.out.num_te_aug,1);
             lblIdx = 1;
             for i = 1:classifier.out.num_te_video
-                classifier.out.testing_labels_vector_aug( ...
-                    lblIdx:lblIdx+classifier.param.numTestSamplesVideo(i)-1)...
-                    = repmat([classifier.out.testing_labels_vector_video],...
-                             classifier.param.numTestSamplesVideo(i),1);
+%                classifier.out.testing_labels_vector_aug( ...
+%                lblIdx:lblIdx+classifier.param.numTestSamplesVideo(i)-1,:)...
+%                    = repmat([classifier.out.testing_labels_vector_video(i)],...
+%                             classifier.param.numTestSamplesVideo(i),1);
+
+                for j = 1:classifier.param.numTestSamplesVideo(i)
+                    classifier.out.testing_labels_vector_aug(lblIdx+j-1) = ...
+                        classifier.out.testing_labels_vector_video(i);
+                end
 
                 for j = 1:classifier.param.numTestSamplesVideo(i)
                     classifier.out.testing_labels_fname_aug(lblIdx+j-1) = ...
@@ -130,9 +142,8 @@ classdef Classifier < handle
                 lblIdx = lblIdx + classifier.param.numTestSamplesVideo(i);
             end
 
-            classifier.out.testing_labels_vector_aug = ...
-                [  classifier.out.testing_labels_vector_aug ; ...
-                   classifier.out.testing_labels_vector_video ];
+            classifier.out.testing_labels_vector_aug(lblIdx:end,:) = ...
+                   classifier.out.testing_labels_vector_video(:);
 
         end
 
@@ -206,6 +217,40 @@ classdef Classifier < handle
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+        function augLevelClassifier(classifier)
+            % Train a video level classifier
+
+            t_cv_start_aug = tic;
+
+            lssvm.lambda = 10^-3 * classifier.out.num_tr_aug; 
+
+            [lssvm.alphas,lssvm.b, lssvm.cvErrs, lssvm.cvWs, lssvm.cvBs] = ...
+                ML_Ridge.kerRidgeReg_cv(classifier.param.Linear_K_aug, ...
+                classifier.out.training_labels_vector_aug, lssvm.lambda, ...
+                ones(classifier.out.num_tr_aug,1));
+
+            lssvm.w = classifier.param.Linear_K_aug * lssvm.alphas;            
+            lssvm.decision_values = ...
+                classifier.param.Linear_KK_aug * lssvm.alphas + lssvm.b; 
+
+           [lssvm.recall, lssvm.precision, lssvm.ap_info] = ...
+               vl_pr(classifier.out.testing_labels_vector_aug, ...
+               lssvm.decision_values);
+
+            lssvm.rmse = ...
+                sqrt( (norm(lssvm.cvErrs)^2) / classifier.out.num_tr_aug );
+
+            classifier.out.lssvm_aug_baseline = lssvm;
+
+            t_cv_elapsed_aug = toc(t_cv_start_aug);
+
+            fprintf('LSSVM (Aug): %s : %10f\t time = %10f \n', ...
+                classifier.param.cl, ...
+                lssvm.rmse, t_cv_elapsed_aug);
+        end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
     function initVars(classifier) 
         %  Some declarations
 

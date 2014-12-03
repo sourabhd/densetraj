@@ -18,6 +18,7 @@ classdef VideoActionRecognizer < handle
             ar.kernelComp();
             ar.createTrainSet();
             ar.createTestSet();
+            ar.kernelCompAug();
             ar.classifyAllCategories();
             ar.presentResults();
             t_elapsed = toc(t_start);
@@ -137,6 +138,19 @@ classdef VideoActionRecognizer < handle
         end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+        function kernelCompAug(ar)
+            % Compute the kernel matrices
+            t_kernelcomp_start = tic;
+            ar.prop.Linear_K_aug  = ...
+                ar.prop.trX * ar.prop.trX';
+            ar.prop.Linear_KK_aug = ...
+                ar.prop.teX * ar.prop.trX';
+            t_kernelcomp_elapsed = toc(t_kernelcomp_start);
+            fprintf('Kernel matrices computed in %f sec\n', ...
+                t_kernelcomp_elapsed);
+        end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
         function classifyAllCategories(ar)
 
@@ -166,6 +180,8 @@ classdef VideoActionRecognizer < handle
                 param(i).numTestSamplesVideo  = ar.prop.numTestSamplesVideo;
                 param(i).numTrainSamples      = ar.prop.numTrainSamples;
                 param(i).numTestSamples       = ar.prop.numTestSamples;
+                param(i).Linear_K_aug         = ar.prop.Linear_K_aug;
+                param(i).Linear_KK_aug        = ar.prop.Linear_KK_aug;         
 
                 % Call our function
                 classifier(i) = Classifier(param(i));
@@ -183,6 +199,9 @@ classdef VideoActionRecognizer < handle
             ar.prop.mAP.lssvm_thread_baseline = ... 
                 calc_mean_ap(ar.prop.classes, ...
                 { ar.prop.res(:).lssvm_thread_baseline });
+            ar.prop.mAP.lssvm_aug_baseline = ... 
+                calc_mean_ap(ar.prop.classes, ...
+                { ar.prop.res(:).lssvm_aug_baseline });
 
             fprintf('\n');
             fprintf('Results : Mean Average Precision\n');
@@ -190,6 +209,8 @@ classdef VideoActionRecognizer < handle
                 ar.prop.mAP.lssvm_video_baseline);
             fprintf('%-25s : %15f\n', 'Thread baseline', ...
                 ar.prop.mAP.lssvm_thread_baseline);
+            fprintf('%-25s : %15f\n', 'Augmented baseline', ...
+                ar.prop.mAP.lssvm_aug_baseline);
             fprintf('\n');
 
 %
@@ -250,7 +271,8 @@ classdef VideoActionRecognizer < handle
         for v = 1:ar.prop.num_tr_video
             n = length(ar.prop.tr_f.tr_threads_with_fv{v});
             ar.prop.numTrainSamplesVideo(v) = 0;
-            for k = n:n-ar.prop.subset_size_ub
+            lb = max(1,n-ar.prop.subset_size_ub);
+            for k = n:-1:lb
                 ar.prop.numTrainSamplesVideo(v) = ...
                     ar.prop.numTrainSamplesVideo(v) + nchoosek(n,k);
             end
@@ -327,7 +349,8 @@ classdef VideoActionRecognizer < handle
         for v = 1:ar.prop.num_te_video
             n = length(ar.prop.te_f.te_threads_with_fv{v});
             ar.prop.numTestSamplesVideo(v) = 0;
-            for k = n:n-ar.prop.subset_size_ub
+            lb = max(1,n-ar.prop.subset_size_ub);
+            for k = n:-1:lb
                 ar.prop.numTestSamplesVideo(v) = ...
                     ar.prop.numTestSamplesVideo(v) + nchoosek(n,k);
             end
