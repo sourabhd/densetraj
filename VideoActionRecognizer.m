@@ -13,9 +13,11 @@ classdef VideoActionRecognizer < handle
         function recognize(ar)
             t_start = tic;  
             ar.init();
-            ar.mapThreadNum();
+            ar.mapTrThreadNum();
+            ar.mapTeThreadNum();
             ar.kernelComp();
             ar.createTrainSet();
+            ar.createTestSet();
             ar.classifyAllCategories();
             ar.presentResults();
             t_elapsed = toc(t_start);
@@ -156,7 +158,8 @@ classdef VideoActionRecognizer < handle
                 param(i).Linear_K            = ar.prop.Linear_K;
                 param(i).Linear_KK           = ar.prop.Linear_KK;
                 param(i).subset_size_ub      = ar.prop.subset_size_ub;
-                param(i).thread2rowMap       = ar.prop.thread2rowMap;
+                param(i).trThread2rowMap     = ar.prop.trThread2rowMap;
+                param(i).teThread2rowMap     = ar.prop.teThread2rowMap;
                 param(i).trX                 = ar.prop.trX;
 
                 % Call our function
@@ -194,7 +197,7 @@ classdef VideoActionRecognizer < handle
         end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-        function mapThreadNum(ar)
+        function mapTrThreadNum(ar)
             % Map thread numbers for lookup
 
             rCounter = 1;
@@ -210,7 +213,28 @@ classdef VideoActionRecognizer < handle
                     rCounter = rCounter + 1;
                 end
             end
-            ar.prop.thread2rowMap = containers.Map(tKeySet,tValueSet);
+            ar.prop.trThread2rowMap = containers.Map(tKeySet,tValueSet);
+         end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+        function mapTeThreadNum(ar)
+            % Map thread numbers for lookup
+
+            rCounter = 1;
+            tKeySet = {};
+            tValueSet = 1:ar.prop.num_te;
+            for i = 1:ar.prop.num_te_video
+                teNumThreadsVidi = ...
+                    length(ar.prop.te_f.te_threads_with_fv{i});
+                for j = 1:teNumThreadsVidi
+                    tKey = sprintf('%8d_%8d', i, ...
+                        ar.prop.te_f.te_threads_with_fv{i}{j});
+                    tKeySet{end+1} = tKey;
+                    rCounter = rCounter + 1;
+                end
+            end
+            ar.prop.teThread2rowMap = containers.Map(tKeySet,tValueSet);
          end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -237,7 +261,7 @@ classdef VideoActionRecognizer < handle
             for t = 1:trNumThreadsVidv
                 tt = trThreadIndexRelVidv{t};
                 threadKey = sprintf('%8d_%8d', v, tt);
-                trThreadIndexVidv(t,:) = ar.prop.thread2rowMap(threadKey);
+                trThreadIndexVidv(t,:) = ar.prop.trThread2rowMap(threadKey);
 %                trThreadIndexHmapVSVidv(tt) = t;
             end
 %            trThreadIndexHmapVidv = ...
@@ -276,12 +300,74 @@ classdef VideoActionRecognizer < handle
                 end
             end
         end
-        fprintf('Total size\n');
+        fprintf('Total Train Set size:\n');
         size(ar.prop.trX)
+
+        ar.prop.trX = [ ar.prop.trX ; ar.prop.tr_f_video.train_fv ];
+        fprintf('Total Train Set size - augemented:\n');
+        size(ar.prop.trX)
+
     end
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+    function createTestSet(ar)
+
+        ar.prop.numTestSamples = 0;
+        for v = 1:ar.prop.num_te_video
+            n = length(ar.prop.te_f.te_threads_with_fv{v});
+            for k = n:n-ar.prop.subset_size_ub
+                ar.prop.numTestSamples = ...
+                    ar.prop.numTestSamples + nchoosek(n,k);
+            end
+        end
+
+        teXCtr = 1;
+        ar.prop.teX = zeros(ar.prop.numTestSamples,ar.prop.feat_dim);
+        for v = 1:ar.prop.num_te_video
+
+            % Obtain the index of each thread in the train set
+            teThreadIndexRelVidv = ar.prop.te_f.te_threads_with_fv{v};
+            teNumThreadsVidv = length(teThreadIndexRelVidv);
+            teThreadIndexVidv = zeros(teNumThreadsVidv,1);
+            for t = 1:teNumThreadsVidv
+                tt = teThreadIndexRelVidv{t};
+                threadKey = sprintf('%8d_%8d', v, tt);
+                teThreadIndexVidv(t,:) = ar.prop.teThread2rowMap(threadKey);
+            end
+
+            % Calculate cumsum for DP
+            cumsumVidv = cumsum( ...
+                ar.prop.te_f.test_fv(teThreadIndexVidv,:),1);
+            cumsumZVidv = [ zeros(1, ar.prop.feat_dim) ; cumsumVidv ];
+
+            % Compute subsets of size N, N-1, ... ; N: num of threads
+            teThreadSubsetsVidv = get_subsets(1:teNumThreadsVidv, ...
+                ar.prop.subset_size_ub);
+
+            % Normalized average features
+            numSz = length(teThreadSubsetsVidv);
+            for sz = 1:numSz
+                lenSz = size(teThreadSubsetsVidv{sz},1);
+                for i = 1:lenSz
+%
+                    ar.prop.teX(teXCtr,:) = ... 
+                        normavg2(cumsumZVidv,teThreadSubsetsVidv{sz}(i,:)); 
+                    teXCtr = teXCtr + 1;
+                    if mod(teXCtr, 1000) == 0
+                        fprintf('%d\n', teXCtr);
+                    end
+                end
+            end
+        end
+        fprintf('Total Test size:\n');
+        size(ar.prop.teX)
+
+        ar.prop.teX = [ ar.prop.teX ; ar.prop.te_f_video.test_fv ];
+        fprintf('Total Test size - augmented:\n');
+        size(ar.prop.teX)
+
+    end
     end
 end
