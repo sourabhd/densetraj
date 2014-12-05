@@ -320,9 +320,9 @@ classdef VideoActionRecognizer < handle
 %                containers.Map(1:trNumThreadsVidv,trThreadIndexHmapVSVidv);
 
             % Calculate cumsum for DP
-            cumsumVidv = cumsum( ...
-                ar.prop.tr_f.train_fv(trThreadIndexVidv,:),1);
-            cumsumZVidv = [ zeros(1, ar.prop.feat_dim) ; cumsumVidv ];
+%            cumsumVidv = cumsum( ...
+%                ar.prop.tr_f.train_fv(trThreadIndexVidv,:),1);
+%            cumsumZVidv = [ zeros(1, ar.prop.feat_dim) ; cumsumVidv ];
 
             % Compute subsets of size N, N-1, ... ; N: num of threads
             %trThreadSubsetsVidv = get_subsets(trThreadIndexRelVidv, ...
@@ -335,16 +335,11 @@ classdef VideoActionRecognizer < handle
             for sz = 1:numSz
                 lenSz = size(trThreadSubsetsVidv{sz},1);
                 for i = 1:lenSz
-                    %    trX = [trX ; normavg(classifier.param.tr.train_fv, ...
-                    %        trThreadSubsetsVidv{sz}(i))];
-
-%                    disp(trThreadSubsetsVidv{sz}(i,:));
-%                    trX = [ trX ; ...
-%                        normavg2(cumsumZVidv,trThreadSubsetsVidv{sz}(i,:))]; 
-%                    size(trX)
-%
+%                    ar.prop.trX(trXCtr,:) = ... 
+%                        normavg2(cumsumZVidv,trThreadSubsetsVidv{sz}(i,:)); 
                     ar.prop.trX(trXCtr,:) = ... 
-                        normavg2(cumsumZVidv,trThreadSubsetsVidv{sz}(i,:)); 
+                        normavg(ar.prop.tr_f.train_fv, ...
+                        trThreadSubsetsVidv{sz}(i,:)); 
                     trXCtr = trXCtr + 1;
                     if mod(trXCtr, 1000) == 0
                         fprintf('%d\n', trXCtr);
@@ -409,8 +404,12 @@ classdef VideoActionRecognizer < handle
                 lenSz = size(teThreadSubsetsVidv{sz},1);
                 for i = 1:lenSz
 %
+%                    ar.prop.teX(teXCtr,:) = ... 
+%                        normavg2(cumsumZVidv,teThreadSubsetsVidv{sz}(i,:)); 
+%
                     ar.prop.teX(teXCtr,:) = ... 
-                        normavg2(cumsumZVidv,teThreadSubsetsVidv{sz}(i,:)); 
+                        normavg(ar.prop.te_f.test_fv, ...
+                        teThreadSubsetsVidv{sz}(i,:)); 
                     teXCtr = teXCtr + 1;
                     if mod(teXCtr, 1000) == 0
                         fprintf('%d\n', teXCtr);
