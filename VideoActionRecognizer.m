@@ -18,7 +18,8 @@ classdef VideoActionRecognizer < handle
             ar.kernelComp();
             ar.createTrainSet();
             ar.createTestSet();
-            ar.kernelCompAug();
+            %ar.kernelCompAug();
+            ar.kernelCompVal();
             ar.classifyAllCategories();
             ar.presentResults();
             t_elapsed = toc(t_start);
@@ -30,7 +31,8 @@ classdef VideoActionRecognizer < handle
         function init(ar)
 
             ar.prop.num_par_threads = 6;
-            ar.prop.run_desc = 'Convert to LSSVM trials';
+            ar.prop.run_desc = ...
+                'LSSVM: train: pick best thread subset, test:video';
             fprintf('DESCRIPTION: %s\n', ar.prop.run_desc);
 
             rng('shuffle');
@@ -150,6 +152,20 @@ classdef VideoActionRecognizer < handle
             fprintf('Kernel matrices computed in %f sec\n', ...
                 t_kernelcomp_elapsed);
         end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+
+        function kernelCompVal(ar)
+            % Compute the kernel matrices
+            t_kernelcomp_start = tic;
+            ar.prop.Linear_K_val = ...
+                ar.prop.trX * ar.prop.tr_f_video.train_fv';
+            t_kernelcomp_elapsed = toc(t_kernelcomp_start);
+            fprintf('Kernel matrices computed in %f sec\n', ...
+                t_kernelcomp_elapsed);
+        end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
         function classifyAllCategories(ar)
@@ -180,8 +196,9 @@ classdef VideoActionRecognizer < handle
                 param(i).numTestSamplesVideo  = ar.prop.numTestSamplesVideo;
                 param(i).numTrainSamples      = ar.prop.numTrainSamples;
                 param(i).numTestSamples       = ar.prop.numTestSamples;
-                param(i).Linear_K_aug         = ar.prop.Linear_K_aug;
-                param(i).Linear_KK_aug        = ar.prop.Linear_KK_aug;         
+%                param(i).Linear_K_aug         = ar.prop.Linear_K_aug;
+%                param(i).Linear_KK_aug        = ar.prop.Linear_KK_aug;         
+                param(i).Linear_K_val        = ar.prop.Linear_K_val;         
 
                 % Call our function
                 classifier(i) = Classifier(param(i));
@@ -196,21 +213,26 @@ classdef VideoActionRecognizer < handle
             ar.prop.mAP.lssvm_video_baseline = ...
                 calc_mean_ap(ar.prop.classes, ...
                 { ar.prop.res(:).lssvm_video_baseline });
-            ar.prop.mAP.lssvm_thread_baseline = ... 
-                calc_mean_ap(ar.prop.classes, ...
-                { ar.prop.res(:).lssvm_thread_baseline });
-            ar.prop.mAP.lssvm_aug_baseline = ... 
-                calc_mean_ap(ar.prop.classes, ...
-                { ar.prop.res(:).lssvm_aug_baseline });
+%            ar.prop.mAP.lssvm_thread_baseline = ... 
+%                calc_mean_ap(ar.prop.classes, ...
+%                { ar.prop.res(:).lssvm_thread_baseline });
+%            ar.prop.mAP.lssvm_aug_baseline = ... 
+%                calc_mean_ap(ar.prop.classes, ...
+%                { ar.prop.res(:).lssvm_aug_baseline });
 
+            ar.prop.mAP.lssvmXS = ...
+                calc_mean_ap(ar.prop.classes, ...
+                { ar.prop.res(:).lssvmXS });
             fprintf('\n');
             fprintf('Results : Mean Average Precision\n');
             fprintf('%-25s : %15f\n', 'Video baseline', ...
                 ar.prop.mAP.lssvm_video_baseline);
-            fprintf('%-25s : %15f\n', 'Thread baseline', ...
-                ar.prop.mAP.lssvm_thread_baseline);
-            fprintf('%-25s : %15f\n', 'Augmented baseline', ...
-                ar.prop.mAP.lssvm_aug_baseline);
+%            fprintf('%-25s : %15f\n', 'Thread baseline', ...
+%                ar.prop.mAP.lssvm_thread_baseline);
+%            fprintf('%-25s : %15f\n', 'Augmented baseline', ...
+%                ar.prop.mAP.lssvm_aug_baseline);
+            fprintf('%-25s : %15f\n', 'Our algorithm', ...
+                ar.prop.mAP.lssvmXS);
             fprintf('\n');
 
 %
