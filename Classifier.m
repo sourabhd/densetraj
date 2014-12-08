@@ -335,7 +335,7 @@ classdef Classifier < handle
 %
 %            end
 %
-%
+
             classifier.out.teXS = zeros(classifier.out.num_te_video,...
                     classifier.out.feat_dim);
             % teIdx = 1;
@@ -361,11 +361,11 @@ classdef Classifier < handle
             classifier.out.Linear_K_XS = ...
                 classifier.out.trXS * classifier.out.trXS';
 
-%            classifier.out.Linear_KK_XS = ...
-%                classifier.param.te_v.test_fv * classifier.out.trXS';
-
             classifier.out.Linear_KK_XS = ...
-                classifier.out.teXS * classifier.out.trXS';
+                classifier.param.te_v.test_fv * classifier.out.trXS';
+
+%            classifier.out.Linear_KK_XS = ...
+%                classifier.out.teXS * classifier.out.trXS';
 
             % Build model
             [lssvmXS.alphas, lssvmXS.b, lssvmXS.cvErrs, ...
