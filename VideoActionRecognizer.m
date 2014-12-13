@@ -10,6 +10,7 @@ classdef VideoActionRecognizer < handle
             
         end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
         function recognize(ar)
             t_start = tic;  
             ar.init();
@@ -20,6 +21,7 @@ classdef VideoActionRecognizer < handle
             ar.createTestSet();
             %ar.kernelCompAug();
             ar.kernelCompVal();
+            ar.kernelCompAvg();
             ar.classifyAllCategories();
             ar.presentResults();
             t_elapsed = toc(t_start);
@@ -160,7 +162,25 @@ classdef VideoActionRecognizer < handle
             % Compute the kernel matrices
             t_kernelcomp_start = tic;
             ar.prop.Linear_K_val = ...
-                ar.prop.trX * ar.prop.tr_f_video.train_fv';
+                ar.prop.trX * ar.prop.trXavg';
+%            ar.prop.Linear_K_val = ...
+%                ar.prop.trX * ar.prop.tr_f_video.train_fv';
+%            ar.prop.Linear_K_val = ...
+%                ar.prop.trX * ar.prop.trXavg';
+            t_kernelcomp_elapsed = toc(t_kernelcomp_start);
+            fprintf('Kernel matrices computed in %f sec\n', ...
+                t_kernelcomp_elapsed);
+        end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+        function kernelCompAvg(ar)
+            % Compute the kernel matrices
+            t_kernelcomp_start = tic;
+            ar.prop.Linear_K_avg = ...
+                ar.prop.trXavg * ar.prop.trXavg';
+            ar.prop.Linear_KK_avg = ...
+                ar.prop.teXavg * ar.prop.trXavg';
             t_kernelcomp_elapsed = toc(t_kernelcomp_start);
             fprintf('Kernel matrices computed in %f sec\n', ...
                 t_kernelcomp_elapsed);
@@ -196,9 +216,13 @@ classdef VideoActionRecognizer < handle
                 param(i).numTestSamplesVideo  = ar.prop.numTestSamplesVideo;
                 param(i).numTrainSamples      = ar.prop.numTrainSamples;
                 param(i).numTestSamples       = ar.prop.numTestSamples;
+                param(i).Linear_K_avg         = ar.prop.Linear_K_avg;
+                param(i).Linear_KK_avg        = ar.prop.Linear_KK_avg;
 %                param(i).Linear_K_aug         = ar.prop.Linear_K_aug;
 %                param(i).Linear_KK_aug        = ar.prop.Linear_KK_aug;         
                 param(i).Linear_K_val        = ar.prop.Linear_K_val;         
+                param(i).trXavg              = ar.prop.trXavg;
+                param(i).teXavg              = ar.prop.teXavg;
 
                 % Call our function
                 classifier(i) = Classifier(param(i));
@@ -302,6 +326,7 @@ classdef VideoActionRecognizer < handle
                 ar.prop.numTrainSamplesVideo(v);
         end
 
+        ar.prop.trXavg = zeros(ar.prop.num_tr_video,ar.prop.feat_dim);
         trXCtr = 1;
         ar.prop.trX = zeros(ar.prop.numTrainSamples,ar.prop.feat_dim);
         for v = 1:ar.prop.num_tr_video
@@ -316,6 +341,11 @@ classdef VideoActionRecognizer < handle
                 trThreadIndexVidv(t,:) = ar.prop.trThread2rowMap(threadKey);
 %                trThreadIndexHmapVSVidv(tt) = t;
             end
+
+            ar.prop.trXavg(v,:) = normavg( ...
+                ar.prop.tr_f.train_fv, ...
+                trThreadIndexVidv);
+
 %            trThreadIndexHmapVidv = ...
 %                containers.Map(1:trNumThreadsVidv,trThreadIndexHmapVSVidv);
 
@@ -340,6 +370,12 @@ classdef VideoActionRecognizer < handle
                     ar.prop.trX(trXCtr,:) = ... 
                         normavg(ar.prop.tr_f.train_fv, ...
                         trThreadSubsetsVidv{sz}(i,:)); 
+%                    if and(sz == 1,  i == 1)
+%                        fprintf('%d  %d\n', ...
+%                            length(ar.prop.tr_f.tr_threads_with_fv{v}), ...
+%                            length(trThreadSubsetsVidv{sz}(i,:)))
+%                        ar.prop.trXavg(v,:) = ar.prop.trX(trXCtr,:);
+%                    end
                     trXCtr = trXCtr + 1;
                     if mod(trXCtr, 1000) == 0
                         fprintf('%d\n', trXCtr);
@@ -375,6 +411,7 @@ classdef VideoActionRecognizer < handle
                 ar.prop.numTestSamplesVideo(v);
         end
 
+        ar.prop.teXavg = zeros(ar.prop.num_te_video,ar.prop.feat_dim);
         teXCtr = 1;
         ar.prop.teX = zeros(ar.prop.numTestSamples,ar.prop.feat_dim);
         for v = 1:ar.prop.num_te_video
@@ -389,10 +426,15 @@ classdef VideoActionRecognizer < handle
                 teThreadIndexVidv(t,:) = ar.prop.teThread2rowMap(threadKey);
             end
 
+
+            ar.prop.teXavg(v,:) = normavg( ...
+                ar.prop.te_f.test_fv, ...
+                teThreadIndexVidv);
+
             % Calculate cumsum for DP
-            cumsumVidv = cumsum( ...
-                ar.prop.te_f.test_fv(teThreadIndexVidv,:),1);
-            cumsumZVidv = [ zeros(1, ar.prop.feat_dim) ; cumsumVidv ];
+%            cumsumVidv = cumsum( ...
+%                ar.prop.te_f.test_fv(teThreadIndexVidv,:),1);
+%            cumsumZVidv = [ zeros(1, ar.prop.feat_dim) ; cumsumVidv ];
 
             % Compute subsets of size N, N-1, ... ; N: num of threads
             teThreadSubsetsVidv = get_subsets(1:teNumThreadsVidv, ...
@@ -410,6 +452,10 @@ classdef VideoActionRecognizer < handle
                     ar.prop.teX(teXCtr,:) = ... 
                         normavg(ar.prop.te_f.test_fv, ...
                         teThreadSubsetsVidv{sz}(i,:)); 
+
+                    if and(sz == 1,  i == 1)
+                        ar.prop.teXavg(v,:) = ar.prop.teX(teXCtr,:);
+                    end
                     teXCtr = teXCtr + 1;
                     if mod(teXCtr, 1000) == 0
                         fprintf('%d\n', teXCtr);
