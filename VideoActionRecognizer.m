@@ -94,6 +94,11 @@ classdef VideoActionRecognizer < handle
             ar.prop.num_te = size(ar.prop.te_f.test_fv,1);
             ar.prop.feat_dim = size(ar.prop.tr_f.train_fv,2);
 
+            % Normalize
+            %normalize = @(A) bsxfun(@times, A, 1 ./ sqrt(sum(A.^2,2)));
+            %ar.prop.tr_f.train_fv = normalize(ar.prop.tr_f.train_fv);
+            %ar.prop.te_f.test_fv = normalize(ar.prop.te_f.test_fv);
+
             mkdir(ar.prop.results_dir);
 
             ar.prop.feature_dir_video = [ ar.prop.base_dir '/' 'fisher' ];
@@ -107,6 +112,10 @@ classdef VideoActionRecognizer < handle
             size(ar.prop.te_f_video.test_fv)
             ar.prop.num_tr_video = size(ar.prop.tr_f_video.train_fv,1);
             ar.prop.num_te_video = size(ar.prop.te_f_video.test_fv,1);
+
+            % Normalize
+            %ar.prop.tr_f_video.train_fv = normalize(ar.prop.tr_f_video.train_fv);
+            %ar.prop.te_f_video.test_fv = normalize(ar.prop.te_f_video.test_fv);
 
             ar.prop.fileorder_f = [ ar.prop.src_dir '/' 'fileorder.mat' ];
             ar.prop.fileorder = load(ar.prop.fileorder_f);
@@ -342,6 +351,7 @@ classdef VideoActionRecognizer < handle
 %                trThreadIndexHmapVSVidv(tt) = t;
             end
 
+            disp(trThreadIndexVidv);
             ar.prop.trXavg(v,:) = normavg( ...
                 ar.prop.tr_f.train_fv, ...
                 trThreadIndexVidv);
@@ -427,6 +437,7 @@ classdef VideoActionRecognizer < handle
             end
 
 
+            disp(teThreadIndexVidv);
             ar.prop.teXavg(v,:) = normavg( ...
                 ar.prop.te_f.test_fv, ...
                 teThreadIndexVidv);
