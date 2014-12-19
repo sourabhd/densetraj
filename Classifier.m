@@ -20,6 +20,7 @@ classdef Classifier < handle
             classifier.videoLevelClassifier();
             %classifier.threadLevelClassifier();
             %classifier.augLevelClassifier();
+            classifier.normAvgLevelClassifier();
             classifier.bestSubsetClassifier();
             out = classifier.out;
         end
@@ -247,6 +248,44 @@ classdef Classifier < handle
             fprintf('LSSVM (Aug): %s : %10f\t time = %10f \n', ...
                 classifier.param.cl, ...
                 lssvm.rmse, t_cv_elapsed_aug);
+        end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+        function normAvgLevelClassifier(classifier)
+            
+            t_at_start = tic;
+
+            % Parmaeters
+            lssvm.lambda = 10^-3 * classifier.out.num_tr_video; 
+
+            % Build Model
+            [lssvm.alphas, lssvm.b, lssvm.cvErrs, lssvm.cvAlphas, lssvm.cvBs] = ...
+                ML_Ridge.kerRidgeReg_cv(classifier.param.Linear_K_avg, ...
+                classifier.out.training_labels_vector_video, lssvm.lambda, ...
+                ones(classifier.out.num_tr_video,1));
+
+            lssvm.w = classifier.param.Linear_K_avg * lssvm.alphas;            
+
+            % Decision values and error estimates 
+            lssvm.decision_values = ...
+                classifier.param.Linear_KK_avg * lssvm.alphas + lssvm.b; 
+
+           [lssvm.recall, lssvm.precision, lssvm.ap_info] = ...
+               vl_pr(classifier.out.testing_labels_vector_video, ...
+               lssvm.decision_values);
+
+            lssvm.rmse = ...
+                sqrt( (norm(lssvm.cvErrs)^2) / classifier.out.num_tr_video);
+
+            classifier.out.lssvm_normavg_baseline = lssvm;
+
+            t_at_elapsed = toc(t_at_start);
+
+            fprintf('LSSVM (Norm Avg): %s :  %10f\t time = %10f \n', ...
+                classifier.param.cl, ...
+                lssvm.rmse, t_at_elapsed);
+
         end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
