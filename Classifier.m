@@ -253,14 +253,14 @@ classdef Classifier < handle
 
         function bestSubsetClassifier(classifier)
 
-            classifier.param.Linear_K_avg = ...
-                classifier.param.trXavg * classifier.param.trXavg';
-            classifier.param.Linear_KK_avg = ...
-                classifier.param.teXavg * classifier.param.trXavg';
-
-
-            classifier.param.Linear_K_val = ...
-                classifier.param.trX * classifier.param.trXavg';
+%            classifier.param.Linear_K_avg = ...
+%                classifier.param.trXavg * classifier.param.trXavg';
+%            classifier.param.Linear_KK_avg = ...
+%                classifier.param.teXavg * classifier.param.trXavg';
+%
+%
+%            classifier.param.Linear_K_val = ...
+%                classifier.param.trX * classifier.param.trXavg';
 
 
             lssvm.lambda = 10^-3 * classifier.out.num_tr_video; 
@@ -270,16 +270,16 @@ classdef Classifier < handle
 %                ML_Ridge.kerRidgeReg_cv(classifier.param.Linear_K_video, ...
 %                classifier.out.training_labels_vector_video, lssvm.lambda, ...
 %                ones(classifier.out.num_tr_video,1));
-
-            [lssvm.alphas,lssvm.b,lssvm.cvErrs,lssvm.cvAlphas,lssvm.cvBs] = ...
-            ML_Ridge.kerRidgeReg_cv(classifier.param.Linear_K_avg, ...
-                classifier.out.training_labels_vector_video, lssvm.lambda, ...
-                ones(classifier.out.num_tr_video,1));
-
-            %lssvm.cvWs = classifier.param.Linear_K_val * lssvm.cvAlphas;            
-            % Select the thread subset or the video with highest 
-            % cross-validation score 
-
+%
+%%            [lssvm.alphas,lssvm.b,lssvm.cvErrs,lssvm.cvAlphas,lssvm.cvBs] = ...
+%%            ML_Ridge.kerRidgeReg_cv(classifier.param.Linear_K_avg, ...
+%%                classifier.out.training_labels_vector_video, lssvm.lambda, ...
+%%                ones(classifier.out.num_tr_video,1));
+%
+%            %lssvm.cvWs = classifier.param.Linear_K_val * lssvm.cvAlphas;            
+%            % Select the thread subset or the video with highest 
+%            % cross-validation score 
+%
 %            classifier.out.trXS = zeros(classifier.out.num_tr_video, ...
 %                                        classifier.out.feat_dim);
 %            trIdx = 1;
@@ -288,7 +288,7 @@ classdef Classifier < handle
 %%                k = 0;
 %                mx = -Inf;
 %                mxIdx = 0;
-%%                if classifier.out.training_labels_vector_video(i) == 1
+%                if classifier.out.training_labels_vector_video(i) == 1
 %                    for j = 1:classifier.param.numTrainSamplesVideo(i)
 %                        t = trIdx+j-1;
 %                        dvS = ...
@@ -301,23 +301,23 @@ classdef Classifier < handle
 %                            mxIdx = t;
 %                        end
 %                    end
-%%                    t = classifier.param.numTrainSamples+i;
-%%                    dvV = classifier.param.Linear_K_val(t,:)*lssvm.cvAlphas(:,i)...
-%%                        + lssvm.cvBs(i);
-%%                    dvV = classifier.out.training_labels_vector_video(i) ...
-%%                            * dvV;
-%%                    if dvV > mx
-%%                        mx = dvV;
-%%                        mxIdx = t;
-%%                    end
-%%                    k = mxIdx;
+%                    t = classifier.param.numTrainSamples+i;
+%                    dvV = classifier.param.Linear_K_val(t,:)*lssvm.cvAlphas(:,i)...
+%                        + lssvm.cvBs(i);
+%                    dvV = classifier.out.training_labels_vector_video(i) ...
+%                            * dvV;
+%                    if dvV > mx
+%                        mx = dvV;
+%                        mxIdx = t;
+%                    end
+%                    k = mxIdx;
 %                    classifier.out.trXS(i,:) = classifier.param.trX(mxIdx,:);
-%%                else
-%%                    classifier.out.trXS(i,:) = ...
-%%                        classifier.param.tr_v.train_fv(i,:);
-%%                    %    classifier.param.trXavg(i,:);
-%%                end
-%%                trIdx = trIdx + classifier.param.numTrainSamplesVideo(i);
+%                else
+%                    classifier.out.trXS(i,:) = ...
+%                        classifier.param.tr_v.train_fv(i,:);
+%                    %    classifier.param.trXavg(i,:);
+%                end
+%                trIdx = trIdx + classifier.param.numTrainSamplesVideo(i);
 %            end
 %            
 %%           [lssvm.recall, lssvm.precision, lssvm.ap_info] = ...
@@ -336,11 +336,10 @@ classdef Classifier < handle
 %%                lssvm.rmse, t_cv_elapsed_video);
 
 
-            %classifier.out.trXS = classifier.param.trXavg;
-            %classifier.out.teXS = classifier.param.teXavg;
-            classifier.out.trXS = classifier.param.tr_v.train_fv;
-            classifier.out.teXS = classifier.param.te_v.test_fv;
-            %keyboard
+            classifier.out.trXS = classifier.param.trXavg;
+            classifier.out.teXS = classifier.param.teXavg;
+            %classifier.out.trXS = classifier.param.tr_v.train_fv;
+%            classifier.out.teXS = classifier.param.te_v.test_fv;
 
             % Calculate the Kernel matrices 
             classifier.out.Linear_K_XS = ...
@@ -352,7 +351,7 @@ classdef Classifier < handle
             classifier.out.Linear_KK_XS = ...
                 classifier.out.teXS * classifier.out.trXS';
 
-%             keyboard
+             %keyboard
 %            classifier.out.Linear_KK_XS = ...
 %                classifier.param.teXavg * classifier.out.trXS';
 

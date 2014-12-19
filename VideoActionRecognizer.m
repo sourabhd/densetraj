@@ -7,8 +7,10 @@ classdef VideoActionRecognizer < handle
     methods 
 
         function ar = VideoActionRecognizer()
-            
+            run('/nfs/bigeye/sdaptardar/installs/vlfeat/toolbox/vl_setup');
+            which vl_fisher
         end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
         function recognize(ar)
@@ -16,6 +18,9 @@ classdef VideoActionRecognizer < handle
             ar.init();
             ar.mapTrThreadNum();
             ar.mapTeThreadNum();
+            %ar.createCodebook();
+            %ar.createLevel2TrainFV();
+            %ar.createLevel2TestFV();
             ar.kernelComp();
             ar.createTrainSet();
             ar.createTestSet();
@@ -170,10 +175,10 @@ classdef VideoActionRecognizer < handle
         function kernelCompVal(ar)
             % Compute the kernel matrices
             t_kernelcomp_start = tic;
-            ar.prop.Linear_K_val = ...
-                ar.prop.trX * ar.prop.trXavg';
 %            ar.prop.Linear_K_val = ...
-%                ar.prop.trX * ar.prop.tr_f_video.train_fv';
+%                ar.prop.trX * ar.prop.trXavg';
+            ar.prop.Linear_K_val = ...
+                ar.prop.trX * ar.prop.tr_f_video.train_fv';
 %            ar.prop.Linear_K_val = ...
 %                ar.prop.trX * ar.prop.trXavg';
             t_kernelcomp_elapsed = toc(t_kernelcomp_start);
@@ -288,7 +293,7 @@ classdef VideoActionRecognizer < handle
                 trNumThreadsVidi = ...
                     length(ar.prop.tr_f.tr_threads_with_fv{i});
                 for j = 1:trNumThreadsVidi
-                    tKey = sprintf('%8d_%8d', i, ...
+                    tKey = sprintf('%08d_%08d', i, ...
                         ar.prop.tr_f.tr_threads_with_fv{i}{j});
                     tKeySet{end+1} = tKey;
                     rCounter = rCounter + 1;
@@ -309,7 +314,7 @@ classdef VideoActionRecognizer < handle
                 teNumThreadsVidi = ...
                     length(ar.prop.te_f.te_threads_with_fv{i});
                 for j = 1:teNumThreadsVidi
-                    tKey = sprintf('%8d_%8d', i, ...
+                    tKey = sprintf('%08d_%08d', i, ...
                         ar.prop.te_f.te_threads_with_fv{i}{j});
                     tKeySet{end+1} = tKey;
                     rCounter = rCounter + 1;
@@ -346,15 +351,18 @@ classdef VideoActionRecognizer < handle
             trThreadIndexVidv = zeros(trNumThreadsVidv,1);
             for t = 1:trNumThreadsVidv
                 tt = trThreadIndexRelVidv{t};
-                threadKey = sprintf('%8d_%8d', v, tt);
+                threadKey = sprintf('%08d_%08d', v, tt);
                 trThreadIndexVidv(t,:) = ar.prop.trThread2rowMap(threadKey);
 %                trThreadIndexHmapVSVidv(tt) = t;
             end
 
+            fprintf('Video %d\n', v);
             disp(trThreadIndexVidv);
+            fprintf('________________\n');
             ar.prop.trXavg(v,:) = normavg( ...
                 ar.prop.tr_f.train_fv, ...
                 trThreadIndexVidv);
+            %keyboard
 
 %            trThreadIndexHmapVidv = ...
 %                containers.Map(1:trNumThreadsVidv,trThreadIndexHmapVSVidv);
@@ -399,6 +407,7 @@ classdef VideoActionRecognizer < handle
         ar.prop.trX = [ ar.prop.trX ; ar.prop.tr_f_video.train_fv ];
         fprintf('Total Train Set size - augemented:\n');
         size(ar.prop.trX)
+        %keyboard
 
     end
 
@@ -432,12 +441,12 @@ classdef VideoActionRecognizer < handle
             teThreadIndexVidv = zeros(teNumThreadsVidv,1);
             for t = 1:teNumThreadsVidv
                 tt = teThreadIndexRelVidv{t};
-                threadKey = sprintf('%8d_%8d', v, tt);
+                threadKey = sprintf('%08d_%08d', v, tt);
                 teThreadIndexVidv(t,:) = ar.prop.teThread2rowMap(threadKey);
             end
 
 
-            disp(teThreadIndexVidv);
+            %disp(teThreadIndexVidv);
             ar.prop.teXavg(v,:) = normavg( ...
                 ar.prop.te_f.test_fv, ...
                 teThreadIndexVidv);
@@ -464,9 +473,9 @@ classdef VideoActionRecognizer < handle
                         normavg(ar.prop.te_f.test_fv, ...
                         teThreadSubsetsVidv{sz}(i,:)); 
 
-                    if and(sz == 1,  i == 1)
-                        ar.prop.teXavg(v,:) = ar.prop.teX(teXCtr,:);
-                    end
+%                    if and(sz == 1,  i == 1)
+%                        ar.prop.teXavg(v,:) = ar.prop.teX(teXCtr,:);
+%                    end
                     teXCtr = teXCtr + 1;
                     if mod(teXCtr, 1000) == 0
                         fprintf('%d\n', teXCtr);
@@ -482,5 +491,102 @@ classdef VideoActionRecognizer < handle
         size(ar.prop.teX)
 
     end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    function createCodebook(ar)
+    
+        t_s = tic;
+        ar.prop.gmm_level2_dir = [ar.prop.base_dir '/' 'gmm_level2_dir' ];
+        mkdir(ar.prop.gmm_level2_dir);
+        dataset = 'Improved_Traj';
+        X = [ ar.prop.tr_f.train_fv ; ar.prop.tr_f_video.train_fv ];
+        save_file = [ ar.prop.gmm_level2_dir '/' 'gmm_level2.mat' ];
+        [means, covariances, priors] = ...
+            run_gmm(X, dataset, save_file);
+        t_e = toc(t_s);
+        fprintf('Create Codebook: %f sec\n', t_e);
+    end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    function createLevel2TrainFV(ar)
+        
+        t_s = tic;
+        ar.prop.gmm_level2_dir = [ar.prop.base_dir '/' 'gmm_level2_dir' ];
+        load_file = [ ar.prop.gmm_level2_dir '/' 'gmm_level2.mat' ];
+        gmm2 = load(load_file);
+        
+        ar.prop.fv_level2_dir = [ar.prop.base_dir '/' 'fisher_level2_dir' ];
+        mkdir(ar.prop.fv_level2_dir);
+        save_file = [ar.prop.fv_level2_dir '/' 'fisher_level2_train.mat'];
+
+        ar.prop.fvL2Len = 2 * size(gmm2.means,1) * size(gmm2.means,2);
+        trXL2 = zeros(ar.prop.num_tr_video, ar.prop.fvL2Len);
+        for v = 1:ar.prop.num_tr_video
+            trThreadIndexRelVidv = ar.prop.tr_f.tr_threads_with_fv{v};
+            trNumThreadsVidv = length(trThreadIndexRelVidv);
+            trThreadIndexVidv = zeros(trNumThreadsVidv,1);
+            trXL2v = zeros(trNumThreadsVidv+1,ar.prop.feat_dim);
+            for t = 1:trNumThreadsVidv
+                tt = trThreadIndexRelVidv{t};
+                threadKey = sprintf('%08d_%08d', v, tt);
+                trThreadIndexVidv(t,:) = ar.prop.trThread2rowMap(threadKey);
+                trXL2v(t,:) = ar.prop.tr_f.train_fv(trThreadIndexVidv(t,:),:);
+            end
+            trXL2v(end,:) = ar.prop.tr_f_video.train_fv(v,:);
+            trXL2(v,:) = vl_fisher(trXL2v', ...
+                gmm2.means, ...
+                gmm2.covariances, ...
+                gmm2.priors, ...
+                'Improved');  
+        end
+
+        disp(size(trXL2));
+        save(save_file, '-v7.3', 'trXL2');
+        t_e = toc(t_s);
+        fprintf('Feature vector creation (train): %f sec\n', t_e);
+    end
+
+
+    function createLevel2TestFV(ar)
+        
+        t_s = tic;
+        ar.prop.gmm_level2_dir = [ar.prop.base_dir '/' 'gmm_level2_dir' ];
+        load_file = [ ar.prop.gmm_level2_dir '/' 'gmm_level2.mat' ];
+        gmm2 = load(load_file);
+        
+        ar.prop.fv_level2_dir = [ar.prop.base_dir '/' 'fisher_level2_dir' ];
+        mkdir(ar.prop.fv_level2_dir);
+        save_file = [ar.prop.fv_level2_dir '/' 'fisher_level2_test.mat'];
+
+        ar.prop.fvL2Len = 2 * size(gmm2.means,1) * size(gmm2.means,2);
+        teXL2 = zeros(ar.prop.num_te_video, ar.prop.fvL2Len);
+        for v = 1:ar.prop.num_te_video
+            teThreadIndexRelVidv = ar.prop.te_f.te_threads_with_fv{v};
+            teNumThreadsVidv = length(teThreadIndexRelVidv);
+            teThreadIndexVidv = zeros(teNumThreadsVidv,1);
+            teXL2v = zeros(teNumThreadsVidv+1,ar.prop.feat_dim);
+            for t = 1:teNumThreadsVidv
+                tt = teThreadIndexRelVidv{t};
+                threadKey = sprintf('%08d_%08d', v, tt);
+                teThreadIndexVidv(t,:) = ar.prop.teThread2rowMap(threadKey);
+                teXL2v(t,:) = ar.prop.te_f.test_fv(teThreadIndexVidv(t,:),:);
+            end
+            teXL2v(end,:) = ar.prop.te_f_video.test_fv(v,:);
+            teXL2(v,:) = vl_fisher(teXL2v', ...
+                gmm2.means, ...
+                gmm2.covariances, ...
+                gmm2.priors, ...
+                'Improved');  
+        end
+
+        disp(size(teXL2));
+        save(save_file, '-v7.3', 'teXL2');
+        t_e = toc(t_s);
+        fprintf('Feature vector creation (test): %f sec\n', t_e);
+    end
+
+
     end
 end
