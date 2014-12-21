@@ -25,7 +25,7 @@ classdef Classifier < handle
                 classifier.bestSubsetClassifier('video', 'with_video');
             classifier.out.lssvmXS_video_novideo = ...
                 classifier.bestSubsetClassifier('video', 'without_video');
-            classifier.out.lssvmXS_avg_novideo   = ...
+            classifier.out.lssvmXS_avg_video   = ...
                 classifier.bestSubsetClassifier('avg', 'with_video');
             classifier.out.lssvmXS_avg_novideo   = ...
                 classifier.bestSubsetClassifier('avg', 'without_video');
@@ -525,7 +525,7 @@ classdef Classifier < handle
 %
 %            classifier.out.lssvmXS = lssvmXS;
 %
-%            %keyboard
+%            keyboard
 %        end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

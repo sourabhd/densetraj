@@ -289,7 +289,7 @@ classdef VideoActionRecognizer < handle
             fprintf('Start with: norm avg of threads ; include video with threads: YES');
             ar.prop.mAP.lssvmXS_avg_video = ...
                 calc_mean_ap(ar.prop.classes, ...
-                { ar.prop.res(:).lssvmXS_video_video });
+                { ar.prop.res(:).lssvmXS_avg_video });
 
 
             fprintf('\n');
@@ -506,9 +506,11 @@ classdef VideoActionRecognizer < handle
 %            cumsumVidv = cumsum( ...
 %                ar.prop.te_f.test_fv(teThreadIndexVidv,:),1);
 %            cumsumZVidv = [ zeros(1, ar.prop.feat_dim) ; cumsumVidv ];
+%            teThreadSubsetsVidv = get_subsets(1:teNumThreadsVidv, ...
+%                ar.prop.subset_size_ub);
 
             % Compute subsets of size N, N-1, ... ; N: num of threads
-            teThreadSubsetsVidv = get_subsets(1:teNumThreadsVidv, ...
+            teThreadSubsetsVidv = get_subsets(teThreadIndexVidv, ...
                 ar.prop.subset_size_ub);
 
             % Normalized average features
