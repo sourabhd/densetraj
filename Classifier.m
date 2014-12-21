@@ -91,7 +91,7 @@ classdef Classifier < handle
                 lblIdx = lblIdx + classifier.param.numTrainSamplesVideo(i);
             end
 
-            fprintf('lblIdx  %d\n', lblIdx);
+            %fprintf('lblIdx  %d\n', lblIdx);
             size(classifier.out.training_labels_vector_aug)
             size(classifier.out.training_labels_vector_video)
 %            classifier.out.training_labels_vector_aug(lblIdx:end,:) = ...
