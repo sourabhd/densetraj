@@ -355,8 +355,8 @@ classdef Classifier < handle
                         t = classifier.param.numTrainSamples+i;
                         dvV = Linear_K_val(t,:)*lssvm.cvAlphas(:,i)...
                             + lssvm.cvBs(i);
-                        dvV = classifier.out.training_labels_vector_video(i) ...
-                                * dvV;
+%                        dvV = classifier.out.training_labels_vector_video(i) ...
+%                                * dvV;
                         if dvV > mx
                             mx = dvV;
                             mxIdx = t;
@@ -373,11 +373,11 @@ classdef Classifier < handle
             classifier.out.Linear_K_XS = ...
                 classifier.out.trXS * classifier.out.trXS';
 
-            if strcmp(fv_type, 'video')
-                classifier.out.teXS = classifier.param.tr_v.train_fv;
-            else
+%            if strcmp(fv_type, 'video')
+%                classifier.out.teXS = classifier.param.tr_v.train_fv;
+%            else
                 classifier.out.teXS = classifier.param.teXavg;
-            end
+%            end
             classifier.out.Linear_KK_XS = ...
                 classifier.out.teXS * classifier.out.trXS';
 

@@ -39,7 +39,7 @@ classdef VideoActionRecognizer < handle
 
             ar.prop.num_par_threads = 6;
             ar.prop.run_desc = ...
-                'LSSVM: train: pick best thread subset, test:video';
+                'LSSVM: train: pick best thread subset, test:avg, K=4';
             fprintf('DESCRIPTION: %s\n', ar.prop.run_desc);
 
             rng('shuffle');
@@ -133,7 +133,7 @@ classdef VideoActionRecognizer < handle
 
             fprintf('RESULTS_FILE: %s\n', ar.prop.results_file);
 
-            ar.prop.subset_size_ub = 2;
+            ar.prop.subset_size_ub = 4;
 
         end
 
