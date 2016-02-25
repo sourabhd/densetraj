@@ -21,4 +21,6 @@ On trajectory based features and video threads for action recognition
    1. [Improved trajectory features](https://lear.inrialpes.fr/people/wang/improved_trajectories)
    2. [VLFeat](http://www.vlfeat.org/)
   
+* *Dataset:* [Hollywood2](http://www.di.ens.fr/~laptev/actions/hollywood2/)
+
 * *License:* GPLv3
